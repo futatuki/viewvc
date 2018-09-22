@@ -21,7 +21,6 @@ import tempfile
 import popen
 import re
 import urllib
-# from svn import fs, repos, core, client, delta
 from . import _svn
 from . import _svn_fs
 from . import _svn_repos
@@ -441,7 +440,7 @@ class LocalSubversionRepository(vclib.Repository):
                                 {'svn_cross_copies': 1})
     youngest_rev, youngest_path = history[0]
     oldest_rev, oldest_path = history[-1]
-    source = BlameSource(rootpath2url(self.rootpath, path), youngest_rev,
+    source = BlameSource(_svn.rootpath2url(self.rootpath, path), youngest_rev,
                          oldest_rev, include_text, self.config_dir)
     return source, youngest_rev
 
