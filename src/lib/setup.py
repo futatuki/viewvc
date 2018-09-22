@@ -44,8 +44,6 @@ class pre_build(Command):
 
 intermediates = ['vclib/altsvn/_py_ver.pxi',
                  'vclib/altsvn/_svn.c',
-                 'vclib/altsvn/_svn_fs.c',
-                 'vclib/altsvn/_svn_delta.c',
                  'vclib/altsvn/_svn_repos.c']
 
 class clean(_clean):
@@ -72,20 +70,13 @@ ext_modules = [
                             "/usr/local/include/subversion-1"],
               library_dirs=["/usr/local/lib"],
               libraries=["apr-1", "svn_subr-1"]),
-    Extension('vclib.altsvn._svn_fs',
-              ['vclib/altsvn/_svn_fs.pyx'],
-              cython_include_dirs=[cython_include_dir],
-              include_dirs=["/usr/local/include/apr-1",
-                            "/usr/local/include/subversion-1"],
-              library_dirs=["/usr/local/lib"],
-              libraries=["apr-1", "svn_subr-1", "svn_fs-1"]),
     Extension('vclib.altsvn._svn_repos',
               ['vclib/altsvn/_svn_repos.pyx'],
               cython_include_dirs=[cython_include_dir],
               include_dirs=["/usr/local/include/apr-1",
                             "/usr/local/include/subversion-1"],
               library_dirs=["/usr/local/lib"],
-              libraries=["apr-1", "svn_subr-1", "svn_repos-1"]),
+              libraries=["apr-1", "svn_subr-1", "svn_fs-1", "svn_repos-1"]),
 ]
 
 setup(name='vclib.altsvn',

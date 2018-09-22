@@ -130,9 +130,9 @@ class Revision(vclib.Revision):
 
 
 def _get_last_history_rev(fsroot, path):
-  history = _svn_fs.svn_fs_node_history(fsroot, path)
-  history = _svn_fs.svn_fs_history_prev(history, 0)
-  history_path, history_rev = _svn_fs.svn_fs_history_location(history)
+  history = _svn_repos.svn_fs_node_history(fsroot, path)
+  history = _svn_repos.svn_fs_history_prev(history, 0)
+  history_path, history_rev = _svn_repos.svn_fs_history_location(history)
   return history_rev
   
 def temp_checkout(svnrepos, path, rev):
@@ -141,7 +141,7 @@ def temp_checkout(svnrepos, path, rev):
   fp = open(temp, 'wb')
   try:
     root = svnrepos._getroot(rev)
-    stream = _svn_fs.svn_fs_file_contents(root, path)
+    stream = _svn_repos.svn_fs_file_contents(root, path)
     try:
       while 1:
         chunk = _svn.svn_stream_read(stream, _svn.SVN_STREAM_CHUNK_SIZE)
@@ -156,7 +156,7 @@ def temp_checkout(svnrepos, path, rev):
 
 class FileContentsPipe:
   def __init__(self, root, path):
-    self._stream = _svn_fs.svn_fs_file_contents(root, path)
+    self._stream = _svn_repos.svn_fs_file_contents(root, path)
     self._eof = 0
 
   def read(self, len=None):
@@ -279,7 +279,7 @@ class LocalSubversionRepository(vclib.Repository):
     # Open the repository and init some other variables.
     self.repos = _svn_repos.svn_repos_open(self.rootpath)
     self.fs_ptr = _svn_repos.svn_repos_fs(self.repos)
-    self.youngest = _svn_fs.svn_fs_youngest_rev(self.fs_ptr)
+    self.youngest = _svn_repos.svn_fs_youngest_rev(self.fs_ptr)
     self._fsroots = {}
     self._revinfo_cache = {}
 
@@ -325,7 +325,7 @@ class LocalSubversionRepository(vclib.Repository):
       raise vclib.Error("Path '%s' is not a directory." % _norm(path))
     rev = self._getrev(rev)
     fsroot = self._getroot(rev)
-    dirents = _svn_fs.svn_fs_dir_entries(fsroot, path)
+    dirents = _svn_repos.svn_fs_dir_entries(fsroot, path)
     entries = [ ]
     for entry in dirents.values():
       if entry.kind == _svn_api.svn_node_dir:
@@ -354,8 +354,8 @@ class LocalSubversionRepository(vclib.Repository):
       entry.author = author
       entry.log = msg
       if entry.kind == vclib.FILE:
-        entry.size = _svn_fs.svn_fs_file_length(fsroot, path)
-      lock = _svn_fs.svn_fs_get_lock(self.fs_ptr, path)
+        entry.size = _svn_repos.svn_fs_file_length(fsroot, path)
+      lock = _svn_repos.svn_fs_get_lock(self.fs_ptr, path)
       entry.lockinfo = lock and lock.owner or None
 
   def itemlog(self, path_parts, rev, sortby, first, limit, options):
@@ -385,7 +385,7 @@ class LocalSubversionRepository(vclib.Repository):
 
     # See if this path is locked.
     try:
-      lock = _svn_fs.svn_fs_get_lock(self.fs_ptr, path)
+      lock = _svn_repos.svn_fs_get_lock(self.fs_ptr, path)
       if lock:
         lockinfo = lock.owner
     except NameError:
@@ -428,7 +428,7 @@ class LocalSubversionRepository(vclib.Repository):
     path_type = self.itemtype(path_parts, rev)  # does auth-check
     rev = self._getrev(rev)
     fsroot = self._getroot(rev)
-    return _svn_fs.svn_fs_node_proplist(fsroot, path)
+    return _svn_repos.svn_fs_node_proplist(fsroot, path)
   
   def annotate(self, path_parts, rev, include_text=False):
     path = self._getpath(path_parts)
@@ -484,7 +484,7 @@ class LocalSubversionRepository(vclib.Repository):
     if self.itemtype(path_parts, rev) != vclib.FILE:  # does auth-check
       raise vclib.Error("Path '%s' is not a file." % _norm(path))
     fsroot = self._getroot(self._getrev(rev))
-    return _svn_fs.svn_fs_file_length(fsroot, path)   
+    return _svn_repos.svn_fs_file_length(fsroot, path)   
 
   ##--- helpers ---##
 
@@ -506,11 +506,11 @@ class LocalSubversionRepository(vclib.Repository):
         if change.base_path:
           change.base_path = _cleanup_path(change.base_path)
         is_copy = 0
-        if change.action == _svn_fs.svn_fs_path_change_add
+        if change.action == _svn_repos.svn_fs_path_change_add
           action = vclib.ADDED
-        elif change.action == _svn_fs.svn_fs_path_change_delete:
+        elif change.action == _svn_repos.svn_fs_path_change_delete:
           action = vclib.DELETED
-        elif change.action == _svn_fs.svn_fs_path_change_replace:
+        elif change.action == _svn_repos.svn_fs_path_change_replace:
           action = vclib.REPLACED
         else:
             action = vclib.MODIFIED
@@ -552,9 +552,9 @@ class LocalSubversionRepository(vclib.Repository):
         copyfrom_rev = change.copyfrom_rev
       # ...otherwise, if this change could be a copy (that is, it
       # contains an add action), query the copyfrom info ...
-      elif (change.change_kind == _svn_fs.svn_fs_path_change_add or
-            change.change_kind == _svn_fs.svn_fs_path_change_replace):
-        copyfrom_rev, copyfrom_path = _svn_fs.svn_fs_copied_from(fsroot, path)
+      elif (change.change_kind == _svn_repos.svn_fs_path_change_add or
+            change.change_kind == _svn_repos.svn_fs_path_change_replace):
+        copyfrom_rev, copyfrom_path = _svn_repos.svn_fs_copied_from(fsroot, path)
       # ...else, there's no copyfrom info.
       else:
         copyfrom_rev = _svn.SVN_INVALID_REVNUM
@@ -564,7 +564,7 @@ class LocalSubversionRepository(vclib.Repository):
     def _simple_auth_check(fsroot):
       """Return a 2-tuple: found_readable, found_unreadable."""
       found_unreadable = found_readable = 0
-      changes = _svn_fs.svn_fs_path_changed(fsroot)
+      changes = _svn_repos.svn_fs_paths_changed(fsroot)
       paths = changes.keys()
       for path in paths:
         change = changes[path]
@@ -577,7 +577,7 @@ class LocalSubversionRepository(vclib.Repository):
         parts = _path_parts(path)
         if pathtype is None:
           # Figure out the pathtype so we can query the authz subsystem.
-          if change.change_kind == _svn_fs.svn_fs_path_change_delete:
+          if change.change_kind == _svn_repos.svn_fs_path_change_delete:
             # Deletions are annoying, because they might be underneath
             # copies (make their previous location non-trivial).
             prev_parts = parts
@@ -588,8 +588,8 @@ class LocalSubversionRepository(vclib.Repository):
               parent_change = changes.get(parent_path)
               if not (parent_change and \
                       (parent_change.change_kind in 
-                       (_svn_fs.svn_fs_path_change_add,
-                        _svn_fs.svn_fs_path_change_replace))):
+                       (_svn_repos.svn_fs_path_change_add,
+                        _svn_repos.svn_fs_path_change_replace))):
                 del(parent_parts[-1])
                 continue
               copyfrom_path, copyfrom_rev = \
@@ -621,7 +621,7 @@ class LocalSubversionRepository(vclib.Repository):
     def _revinfo_helper(rev, include_changed_paths):
       # Get the revision property info.  (Would use
       # editor.get_root_props(), but something is broken there...)
-      revprops = _svn_fs.svn_fs_revision_proplist(self.fs_ptr, rev)
+      revprops = _svn_repos.svn_fs_revision_proplist(self.fs_ptr, rev)
       msg, author, date, revprops = _split_revprops(revprops)
   
       # Optimization: If our caller doesn't care about the changed
@@ -664,11 +664,11 @@ class LocalSubversionRepository(vclib.Repository):
     return tuple(cached_info)
   
   def _log_helper(self, path, rev, lockinfo):
-    rev_root = _svn_fs.svn_fs_revision_root(self.fs_ptr, rev)
-    copyfrom_rev, copyfrom_path = _svn_fs.svn_fs_copied_from(rev_root, path)
+    rev_root = _svn_repos.svn_fs_revision_root(self.fs_ptr, rev)
+    copyfrom_rev, copyfrom_path = _svn_repos.svn_fs_copied_from(rev_root, path)
     date, author, msg, revprops, changes = self._revinfo(rev)
-    if _svn_fs.svn_fs_is_file(rev_root, path):
-      size = _svn_fs.svn_fs_file_length(rev_root, path)
+    if _svn_repos.svn_fs_is_file(rev_root, path):
+      size = _svn_repos.svn_fs_file_length(rev_root, path)
     else:
       size = None
     return Revision(rev, date, author, msg, size, lockinfo, path,
@@ -684,7 +684,7 @@ class LocalSubversionRepository(vclib.Repository):
     show_all_logs = options.get('svn_show_all_dir_logs', 0)
     if not show_all_logs:
       # See if the path is a file or directory.
-      kind = _svn_fs.svn_fs_check_path(fsroot, path)
+      kind = _svn_repos.svn_fs_check_path(fsroot, path)
       if kind is _svn_api.svn_node_file:
         show_all_logs = 1
       
@@ -732,7 +732,7 @@ class LocalSubversionRepository(vclib.Repository):
     # Similar to itemtype(), but without the authz check.  Returns
     # None for missing paths.
     try:
-      kind = _svn_fs.svn_fs_check_path(self._getroot(rev), path)
+      kind = _svn_repos.svn_fs_check_path(self._getroot(rev), path)
     except:
       return None
     if kind == _svn_api.svn_node_dir:
@@ -762,7 +762,7 @@ class LocalSubversionRepository(vclib.Repository):
     return _cleanup_path(old_path)
   
   def created_rev(self, full_name, rev):
-    return _svn_fs.svn_fs_node_created_rev(self._getroot(rev), full_name)
+    return _svn_repos.svn_fs_node_created_rev(self._getroot(rev), full_name)
   
   def last_rev(self, path, peg_revision, limit_revision=None):
     """Given PATH, known to exist in PEG_REVISION, find the youngest
@@ -786,19 +786,19 @@ class LocalSubversionRepository(vclib.Repository):
         return peg_revision, path
       elif peg_revision > limit_revision:
         fsroot = self._getroot(peg_revision)
-        history = _svn_fs.svn_fs_node_history(fsroot, path)
+        history = _svn_repos.svn_fs_node_history(fsroot, path)
         while history:
-          path, peg_revision = _svn_fs.svn_fs_history_location(history)
+          path, peg_revision = _svn_repos.svn_fs_history_location(history)
           if peg_revision <= limit_revision:
             return max(peg_revision, limit_revision), _cleanup_path(path)
-          history = _svn_fs.svn_fs_history_prev(history, 1)
+          history = _svn_repos.svn_fs_history_prev(history, 1)
         return peg_revision, _cleanup_path(path)
       else:
-        orig_id = _svn_fs.svn_fs_node_id(self._getroot(peg_revision), path)
+        orig_id = _svn_repos.svn_fs_node_id(self._getroot(peg_revision), path)
         while peg_revision != limit_revision:
           mid = (peg_revision + 1 + limit_revision) / 2
           try:
-            mid_id = _svn_fs.svn_fs_node_id(self._getroot(mid), path)
+            mid_id = _svn_repos.svn_fs_node_id(self._getroot(mid), path)
           except _svn.SVNerr, e:
             if e.get_code() == _svn.SVN_ERR_FS_NOT_FOUND:
               cmp = -1
@@ -807,7 +807,7 @@ class LocalSubversionRepository(vclib.Repository):
           else:
             ### Not quite right.  Need a comparison function that only returns
             ### true when the two nodes are the same copy, not just related.
-            cmp = _svn_fs.svn_fs_compare_ids(orig_id, mid_id)
+            cmp = _svn_repos.svn_fs_compare_ids(orig_id, mid_id)
   
           if cmp in (0, 1):
             peg_revision = mid
@@ -831,13 +831,13 @@ class LocalSubversionRepository(vclib.Repository):
     # and with file contents which read "link SOME_PATH".
     if path_type != vclib.FILE:
       return None
-    props = _svn_fs.svn_fs_node_proplist(fsroot, path)
+    props = _svn_repos.svn_fs_node_proplist(fsroot, path)
     if not props.has_key(_svn.SVN_PROP_SPECIAL):
       return None
     pathspec = b''
     ### FIXME: We're being a touch sloppy here, only checking the first line
     ### of the file.
-    stream = _svn_fs.svn_fs_file_contents(fsroot, path)
+    stream = _svn_repos.svn_fs_file_contents(fsroot, path)
     try:
       pathspec, eof = _svn.svn_stream_readline(stream, b'\n')
     finally:
