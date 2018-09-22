@@ -24,11 +24,23 @@ import urllib
 # from svn import fs, repos, core, client, delta
 from . import _svn
 from . import _svn_fs
+from . import _svn_repos
 
-### Require Subversion 1.9 or better. (but it will be appeared at compile time)
-if (_svn.SVN_VER_MAJOR, _svn.SVN_VER_MINOR, _svn.SVN_VER_PATCH) < (1, 9, 0):
-  raise Exception, "Version requirement not met (needs 1.9.0 or better)"
+### Require Subversion 1.3.1 or better.
+if (_svn.SVN_VER_MAJOR, _svn.SVN_VER_MINOR, _svn.SVN_VER_PATCH) < (1, 3, 1):
+  raise Exception, "Version requirement not met (needs 1.3.1 or better)"
 
+# for compatibility between Python 2 and Python 3
+_default_encoding = sys.getdefaultencoding()
+
+def setdefaultencoding(enc):
+    codecs.lookup(enc)
+    _default_encoding = enc
+    return
+
+def _norm(s, encoding=_default_encoding, errors='strict'):
+    return (s.decode(encoding, errors)
+                if not isinstance(s, str) and isinstance(s, bytes) else s)
 
 def _allow_all(root, path, pool):
   """Generic authz_read_func that permits access to all paths"""
@@ -239,8 +251,8 @@ class SVNChangedPath(vclib.ChangedPath):
   
   def __init__(self, path, rev, pathtype, base_path, base_rev,
                action, copied, text_changed, props_changed):
-    path_parts = _path_parts(path or '')
-    base_path_parts = _path_parts(base_path or '')
+    path_parts = _path_parts(path or b'')
+    base_path_parts = _path_parts(base_path or b'')
     vclib.ChangedPath.__init__(self, path_parts, rev, pathtype,
                                base_path_parts, base_rev, action,
                                copied, text_changed, props_changed)
@@ -249,7 +261,7 @@ class SVNChangedPath(vclib.ChangedPath):
 class LocalSubversionRepository(vclib.Repository):
   def __init__(self, name, rootpath, authorizer, utilities, config_dir):
     if not (os.path.isdir(rootpath) \
-            and os.path.isfile(os.path.join(rootpath, 'format'))):
+            and os.path.isfile(os.path.join(rootpath, b'format'))):
       raise vclib.ReposNotFound(name)
 
     # Initialize some stuff.
@@ -300,7 +312,7 @@ class LocalSubversionRepository(vclib.Repository):
   def openfile(self, path_parts, rev, options):
     path = self._getpath(path_parts)
     if self.itemtype(path_parts, rev) != vclib.FILE:  # does auth-check
-      raise vclib.Error("Path '%s' is not a file." % path)
+      raise vclib.Error("Path '%s' is not a file." % _norm(path))
     rev = self._getrev(rev)
     fsroot = self._getroot(rev)
     revision = str(_get_last_history_rev(fsroot, path))
@@ -310,7 +322,7 @@ class LocalSubversionRepository(vclib.Repository):
   def listdir(self, path_parts, rev, options):
     path = self._getpath(path_parts)
     if self.itemtype(path_parts, rev) != vclib.DIR:  # does auth-check
-      raise vclib.Error("Path '%s' is not a directory." % path)
+      raise vclib.Error("Path '%s' is not a directory." % _norm(path))
     rev = self._getrev(rev)
     fsroot = self._getroot(rev)
     dirents = _svn_fs.svn_fs_dir_entries(fsroot, path)
@@ -327,7 +339,7 @@ class LocalSubversionRepository(vclib.Repository):
   def dirlogs(self, path_parts, rev, entries, options):
     path = self._getpath(path_parts)
     if self.itemtype(path_parts, rev) != vclib.DIR:  # does auth-check
-      raise vclib.Error("Path '%s' is not a directory." % path)
+      raise vclib.Error("Path '%s' is not a directory." % _norm(path))
     fsroot = self._getroot(self._getrev(rev))
     rev = self._getrev(rev)
     for entry in entries:
@@ -422,7 +434,7 @@ class LocalSubversionRepository(vclib.Repository):
     path = self._getpath(path_parts)
     path_type = self.itemtype(path_parts, rev)  # does auth-check
     if path_type != vclib.FILE:
-      raise vclib.Error("Path '%s' is not a file." % path)
+      raise vclib.Error("Path '%s' is not a file." % _norm(path))
     rev = self._getrev(rev)
     fsroot = self._getroot(rev)
     history = self._get_history(path, rev, path_type, 0,
@@ -470,7 +482,7 @@ class LocalSubversionRepository(vclib.Repository):
   def filesize(self, path_parts, rev):
     path = self._getpath(path_parts)
     if self.itemtype(path_parts, rev) != vclib.FILE:  # does auth-check
-      raise vclib.Error("Path '%s' is not a file." % path)
+      raise vclib.Error("Path '%s' is not a file." % _norm(path))
     fsroot = self._getroot(self._getrev(rev))
     return _svn_fs.svn_fs_file_length(fsroot, path)   
 
@@ -572,7 +584,7 @@ class LocalSubversionRepository(vclib.Repository):
             prev_rev = rev - 1
             parent_parts = parts[:-1]
             while parent_parts:
-              parent_path = '/' + self._getpath(parent_parts)
+              parent_path = b'/' + self._getpath(parent_parts)
               parent_change = changes.get(parent_path)
               if not (parent_change and \
                       (parent_change.change_kind in 
@@ -822,7 +834,7 @@ class LocalSubversionRepository(vclib.Repository):
     props = _svn_fs.svn_fs_node_proplist(fsroot, path)
     if not props.has_key(_svn.SVN_PROP_SPECIAL):
       return None
-    pathspec = ''
+    pathspec = b''
     ### FIXME: We're being a touch sloppy here, only checking the first line
     ### of the file.
     stream = _svn_fs.svn_fs_file_contents(fsroot, path)
@@ -830,7 +842,7 @@ class LocalSubversionRepository(vclib.Repository):
       pathspec, eof = _svn.svn_stream_readline(stream, b'\n')
     finally:
       _svn.svn_stream_close(stream)
-    if pathspec[:5] != 'link ':
+    if pathspec[:5] != b'link ':
       return None
     return pathspec[5:]
 
