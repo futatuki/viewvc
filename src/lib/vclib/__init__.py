@@ -342,7 +342,7 @@ class NonTextualFileContents(Error):
 # ======================================================================
 # Implementation code used by multiple vclib modules
 
-import popen
+import subprocess
 import os
 import time
 
@@ -387,21 +387,22 @@ class _diff_fp:
     self.temp1 = temp1
     self.temp2 = temp2
     args = diff_opts[:]
+    args.insert(0, diff_cmd)
     if info1 and info2:
       args.extend(["-L", self._label(info1), "-L", self._label(info2)])
     args.extend([temp1, temp2])
-    self.fp = popen.popen(diff_cmd, args, "r")
+    self.fp = subprocess.Popen(args, stdout=subprocess.PIPE, close_fds=True)
 
   def read(self, bytes):
-    return self.fp.read(bytes)
+    return self.fp.stdout.read(bytes)
 
   def readline(self):
-    return self.fp.readline()
+    return self.fp.stdout.readline()
 
   def close(self):
     try:
       if self.fp:
-        self.fp.close()
+        self.fp.stdout.close()
         self.fp = None
     finally:
       try:
