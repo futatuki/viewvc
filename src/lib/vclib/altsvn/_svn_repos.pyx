@@ -12,7 +12,7 @@ cdef class svn_fs_t(object):
         self._c_ptr = NULL
         self.roots = {}
     def __init__(self, pool=None, **m):
-        if pool is not None: 
+        if pool is not None:
             self.pool = _svn.Apr_pool(pool)
         else:
             self.pool = _svn.Apr_pool(_svn._root_pool)
@@ -55,10 +55,10 @@ def svn_fs_compare_ids(svn_fs_id_t a, svn_fs_id_t b):
 
 
 # warn: though pool is optional, ommiting to specify it causes
-# allocation from global pool, and not releases its allocation until 
-# the program terminates. 
+# allocation from global pool, and not releases its allocation until
+# the program terminates.
 def svn_fs_revision_root(svn_fs_t fs, _c_.svn_revnum_t rev, pool=None):
-    cdef _svn.Apr_Pool result_pool 
+    cdef _svn.Apr_Pool result_pool
     cdef _c_.svn_fs_root_t * _c_root
     cdef _c_.svn_error_t * serr
     cdef _svn.Svn_error pyerr
@@ -70,7 +70,7 @@ def svn_fs_revision_root(svn_fs_t fs, _c_.svn_revnum_t rev, pool=None):
     else:
         result_pool = _svn._root_pool
     serr = _c_.svn_fs_revision_root(
-                            &_c_root, fs._c_ptr, rev, result_pool._c_pool) 
+                            &_c_root, fs._c_ptr, rev, result_pool._c_pool)
     if serr is not NULL:
         pyerr = _svn.Svn_error().seterror(serr)
         raise _svn.SVNerr(pyerr)
@@ -264,7 +264,7 @@ def svn_fs_paths_changed(svn_fs_root_t root, scratch_pool=None):
                 raise _svn.SVNerr(pyerr)
             while _c_change is not NULL:
                 copyfrom_path = (_c_change[0].copyfrom_path
-                                    if _c_change[0].copyfrom_path is not NULL 
+                                    if _c_change[0].copyfrom_path is not NULL
                                     else None)
                 change[(_c_change[0].path.data)[:_c_change[0].data.len]] = \
                     FsPathChange(
@@ -299,7 +299,7 @@ def svn_fs_paths_changed(svn_fs_root_t root, scratch_pool=None):
     return change
 
 
-cdef class NodeKindTrans(_svn.TransPtr): 
+cdef class NodeKindTrans(_svn.TransPtr):
     cdef object to_object(self):
         return self._c_kind
     cdef void set_c_kind(self, _c_.svn_node_kind_t _c_kind):
@@ -323,7 +323,7 @@ cdef class svn_fs_history_t(object):
         return self
 
 # warn: though result_pool is optional, ommiting to specify it causes
-# allocation from global pool, and not releases its allocation until 
+# allocation from global pool, and not releases its allocation until
 # the program terminates. (scratch_pool is used only if API version >= 1.10)
 def svn_fs_node_history(
         svn_fs_root_t root, const char * path,
@@ -370,7 +370,7 @@ def svn_fs_node_history(
     return svn_fs_history_t().set_history(_c_history)
 
 # warn: though result_pool is optional, ommiting to specify it causes
-# allocation from global pool, and not releases its allocation until 
+# allocation from global pool, and not releases its allocation until
 # the program terminates. (scratch_pool is used only if API version >= 1.10)
 def svn_fs_history_prev(
         svn_fs_history_t history, object cross_copies,
@@ -402,7 +402,7 @@ def svn_fs_history_prev(
     try:
         IF SVN_API_VER >= (1, 10):
             serr = _c_.svn_fs_history_prev2(
-                            &_c_prev, history._c_ptr, _c_cross_copies, 
+                            &_c_prev, history._c_ptr, _c_cross_copies,
                             _c_result_pool, _c_tmp_pool)
         ELSE:
             serr = _c_.svn_fs_history_prev(
@@ -459,7 +459,7 @@ def svn_fs_is_file(svn_fs_root_t root, const char * path, scratch_pool=None):
                 root, path, scratch_pool)
 
 # warn: though result_pool is optional, ommiting to specify it causes
-# allocation from global pool, and not releases its allocation until 
+# allocation from global pool, and not releases its allocation until
 # the program terminates.
 def svn_fs_node_id(svn_fs_root_t root, const char * path, result_pool=None):
     cdef _c_.apr_pool_t * _c_result_pool
@@ -515,8 +515,8 @@ def svn_fs_node_created_rev(
 def svn_fs_node_proplist(
         svn_fs_root_t root, const char * path, scratch_pool=None):
     return _apply_svn_api_root_path_arg1(
-                <svn_rv1_root_path_func_t>_c_.svn_fs_node_proplist, 
-                _svn.HashTrans(_svn.CStringTransStr(), 
+                <svn_rv1_root_path_func_t>_c_.svn_fs_node_proplist,
+                _svn.HashTrans(_svn.CStringTransStr(),
                                _svn.SvnStringTransStr()),
                 root, path, scratch_pool)
 
@@ -595,7 +595,7 @@ def svn_fs_file_length(
                 root, path, scratch_pool)
 
 # warn: though pool is optional, ommiting to specify it causes
-# allocation from global pool, and not releases its allocation until 
+# allocation from global pool, and not releases its allocation until
 # the program terminates.
 def svn_fs_file_contents(svn_fs_root_t root, const char * path, pool=None):
     cdef _c_.apr_status_t ast
@@ -664,7 +664,7 @@ def svn_fs_revision_proplist(
     else:
         ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
-    prop_trans = _svn.HashTrans(_svn.CStringTransStr(), 
+    prop_trans = _svn.HashTrans(_svn.CStringTransStr(),
                                 _svn.SvnStringTransStr(), scratch_pool)
     try:
         IF SVN_API_VER >= (1, 10):
@@ -773,7 +773,7 @@ def svn_repos_open(const char * path, result_pool=None, scratch_pool=None):
         IF SVN_API_VER >= (1, 9):
             serr = _c_.svn_repos_open3(
                         &_c_repos, path, NULL, _c_result_pool, _c_tmp_pool)
-        ELIF SVN_API_VER >= (1, 4):
+        ELIF SVN_API_VER >= (1, 7):
             serr = _c_.svn_repos_open2(
                         &_c_repos, path, NULL, _c_result_pool)
         ELSE:
@@ -861,7 +861,7 @@ cdef class _get_changed_paths_DirBaton(object):
 
 # custom call back used by get_changed_paths(), derived from
 # subversion/bindings/swig/python/svn/repos.py, class ChangedCollector,
-# with Cythonize
+# with Cython
 cdef _c_.svn_error_t * _cb_changed_paths_open_root(
         void * _c_edit_baton, _c_.svn_revnum_t base_revision,
         _c_.apr_pool_t * result_pool, void ** _c_root_baton) with gil:
@@ -1123,7 +1123,7 @@ cdef class NodeHistory(object):
     cdef list histories
     cdef _c_.svn_revnum_t _item_cnt # cache of len(self.histories)
     cdef svn_fs_t fs_ptr
-    cdef _c_.svn_boolean_t show_all_logs 
+    cdef _c_.svn_boolean_t show_all_logs
     cdef _c_.svn_revnum_t oldest_rev
     cdef _c_.svn_revnum_t limit
     def __init__(self, svn_fs_t fs_ptr,
@@ -1141,7 +1141,7 @@ cdef _c_.svn_error_t * _cb_collect_node_history(
             _c_.apr_pool_t * pool) with gil:
     cdef NodeHistory btn
     cdef object changed_paths
-    cdef bytes path 
+    cdef bytes path
     cdef svn_fs_root_t rev_root
     cdef bytes test_path
     cdef _c_.svn_boolean_t found
@@ -1163,7 +1163,7 @@ cdef _c_.svn_error_t * _cb_collect_node_history(
             test_path = path
             found = _c_.FALSE
             off = test_path.rfind(b'/')
-            while off >= 0: 
+            while off >= 0:
                 test_path = test_path[0:off]
                 if test_path in changed_paths:
                     copyfrom_rev, copyfrom_path = \
@@ -1206,7 +1206,7 @@ def _get_history_helper(
                     &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
     try:
         serr = _c_.svn_repos_history2(
-                    fs_ptr._c_ptr, path, _cb_collect_node_history, 
+                    fs_ptr._c_ptr, path, _cb_collect_node_history,
                     <void *>nhbtn, NULL, NULL, 1, rev, cross_copies,
                     _c_tmp_pool)
         if serr is not NULL:
@@ -1215,3 +1215,272 @@ def _get_history_helper(
     finally:
         _c_.apr_pool_destroy(_c_tmp_pool)
     return nhbtn.histories
+
+
+# _get_annotated_source() ... helper for LocalSubversionRepository.annotate()
+# custom baton for _get_annotated_source()
+cdef class CbBlameContainer(_svn.CbContainer):
+    cdef _c_.svn_revnum_t first_rev
+    cdef object include_text
+    def __cinit__(
+            self, fnobj, btn, pool=None, first_rev=_svn.INVALID_REVNUM,
+            include_text=False, **m):
+        self.first_rev = first_rev
+        self.include_text = include_text
+
+# call back functions for _get_annotated_source
+IF SVN_API_VER >= (1, 7):
+    # svn_client_blame_receiver3_t
+    cdef _c_.svn_error_t * _cb_get_annotated_source3(
+            void * _c_baton,
+            _c_.svn_revnum_t _c_start_revnum, _c_.svn_revnum_t _c_end_revnum,
+            _c_.apr_int64_t _c_line_no,
+            _c_.svn_revnum_t _c_revision, _c_.apr_hash_t * _c_rev_props,
+            _c_.svn_revnum_t _c_merged_revision,
+            _c_.apr_hash_t * _c_merged_rev_props,
+            const char * _c_merged_path,
+            const char * _c_line, _c_.svn_boolean_t _c_local_change,
+            _c_.apr_pool_t * _c_pool) with gil:
+        cdef _c_.svn_error_t * _c_err
+        cdef object serr
+        cdef _svn.Svn_error svnerr
+        cdef CbBlameContainer btn
+        cdef _svn.SvnStringTransStr trans_svn_string
+        cdef _c_.svn_string_t * _c_author
+        cdef object author
+        cdef _c_.svn_string_t * _c_date_string
+        cdef object date_string
+        cdef _c_.apr_time_t _c_date
+        cdef object date
+
+        btn = <CbBlameContainer>_c_baton
+        # extract author
+        _c_author = <_c_.svn_string_t *>_c_.apr_hash_get(
+                            _c_rev_props, _c_.SVN_PROP_REVISION_AUTHOR,
+                            _c_.APR_HASH_KEY_STRING)
+        trans_svn_string = _svn.SvnStringTransStr()
+        trans_svn_string.set_ptr(_c_author)
+        author = trans_svn_string.to_object()
+        # extract date
+        date = None
+        _c_date_string = <_c_.svn_string_t *>_c_.apr_hash_get(
+                            _c_rev_props, _c_.SVN_PROP_REVISION_DATE,
+                            _c_.APR_HASH_KEY_STRING)
+        if _c_date_string is not NULL:
+            trans_svn_string.set_ptr(_c_date_string)
+            date_string = trans_svn_string.to_object()
+            if date_string:
+                _c_err = _c_.svn_time_from_cstring(
+                                    &_c_date, <bytes>date_string, _c_pool)
+                if _c_err is NULL:
+                    date = _c_date
+        _c_err = NULL
+        try:
+            btn.fnobj(btn, _c_line_no, _c_revision, author, date,
+                        <bytes>_c_line)
+        except _svn.SVNerr, serr:
+            svnerr = serr.svnerr
+            _c_err = _c_.svn_error_dup(svnerr.geterror())
+            del serr
+        except AssertionError, err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_ASSERTION_FAIL, NULL, str(err))
+        except KeyboardInterrupt, err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_CANCELLED, NULL, str(err))
+        except BaseException, err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_BASE, NULL, str(err))
+        return _c_err
+ELIF SVN_API_VER >= (1, 5):
+    # svn_client_blame_receiver2_t
+    cdef _c_.svn_error_t * _cb_get_annotated_source2(
+            void * _c_baton, _c_.apr_int64_t _c_line_no,
+            _c_.svn_revnum_t _c_revision,
+            const char * _c_author, const char * _c_date_string,
+            _c_.svn_revnum_t _c_merged_revision, const char * _c_merged_author,
+            const char * _c_merged_date_string, const char * _c_merged_path,
+            const char * _c_line, _c_.apr_pool_t * _c_pool) with gil:
+        cdef _c_.svn_error_t * _c_err
+        cdef object serr
+        cdef _svn.Svn_error svnerr
+        cdef CbBlameContainer btn
+        cdef _c_.apr_time_t _c_date
+        cdef object date
+
+        btn = <CbBlameContainer>_c_baton
+        # extract date
+        if _c_date_string is not NULL and _c_date_string[0] != 0:
+            _c_err = _c_.svn_time_from_cstring(
+                                &_c_date, _c_date_string, _c_pool)
+            if _c_err is NULL:
+                date = _c_date
+        else:
+            date = None
+        _c_err = NULL
+        try:
+            btn.fnobj(btn, _c_line_no, _c_revision, <bytes>_c_author, date,
+                        <bytes>_c_line)
+        except _svn.SVNerr, serr:
+            svnerr = serr.svnerr
+            _c_err = _c_.svn_error_dup(svnerr.geterror())
+            del serr
+        except AssertionError, err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_ASSERTION_FAIL, NULL, str(err))
+        except KeyboardInterrupt, err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_CANCELLED, NULL, str(err))
+        except BaseException, err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_BASE, NULL, str(err))
+        return _c_err
+ELSE:
+    # svn_client_blame_receiver_t
+    # just same as _cb_get_annotated_source2 except function signature
+    cdef _c_.svn_error_t * _cb_get_annotated_source(
+            void * _c_baton, _c_.apr_int64_t _c_line_no,
+            _c_.svn_revnum_t _c_revision,
+            const char * _c_author, const char * _c_date_string,
+            const char * _c_line, _c_.apr_pool_t * _c_pool) with gil:
+        cdef _c_.svn_error_t * _c_err
+        cdef object serr
+        cdef _svn.Svn_error svnerr
+        cdef CbBlameContainer btn
+        cdef _c_.apr_time_t _c_date
+        cdef object date
+
+        btn = <CbBlameContainer>_c_baton
+        # extract date
+        if _c_date_string is not NULL and _c_date_string[0] != 0:
+            _c_err = _c_.svn_time_from_cstring(
+                                &_c_date, _c_date_string, _c_pool)
+            if _c_err is NULL:
+                date = _c_date
+        else:
+            date = None
+        _c_err = NULL
+        try:
+            btn.fnobj(btn, _c_line_no, _c_revision, <bytes>_c_author, date,
+                        <bytes>_c_line)
+        except _svn.SVNerr, serr:
+            svnerr = serr.svnerr
+            _c_err = _c_.svn_error_dup(svnerr.geterror())
+            del serr
+        except AssertionError, err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_ASSERTION_FAIL, NULL, str(err))
+        except KeyboardInterrupt, err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_CANCELLED, NULL, str(err))
+        except BaseException, err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_BASE, NULL, str(err))
+        return _c_err
+
+def _get_annotated_source(
+        const char * path_or_url, object rev, object oldest_rev,
+        object blame_func, object config_dir, object include_text=False,
+        object pool=None):
+    cdef char * _c_config_dir
+    cdef _svn.svn_opt_revision_t opt_rev
+    cdef _svn.svn_opt_revision_t opt_oldest_rev
+    cdef _c_.apr_status_t ast
+    cdef _c_.apr_pool_t * _c_tmp_pool
+    cdef _c_.svn_error_t * serr
+    cdef _svn.Svn_error pyerr
+    cdef _c_.apr_hash_t * _c_cfg_hash
+    cdef _c_.apr_array_header_t * _c_empty_array
+    cdef _c_.svn_client_ctx_t * _c_ctx
+    cdef _c_.svn_auth_baton_t * _c_auth_baton
+    cdef list ann_list
+    cdef CbBlameContainer btn
+    IF SVN_API_VER >= (1, 5):
+        cdef _c_.svn_diff_file_options_t * _c_diff_opt
+
+    opt_rev = _svn.svn_opt_revision_t(_c_.svn_opt_revision_number, rev)
+    opt_oldest_rev = _svn.svn_opt_revision_t(_c_.svn_opt_revision_number,
+                                                  oldest_rev)
+    assert callable(blame_func)
+    _c_config_dir = <char *>config_dir if config_dir else NULL
+    if pool is not None:
+        assert (    isinstance(pool, _svn.Apr_Pool)
+                and (<_svn.Apr_Pool>pool)._c_pool is not NULL)
+        ast = _c_.apr_pool_create(
+                        &_c_tmp_pool, (<_svn.Apr_Pool>pool)._c_pool)
+    else:
+        ast = _c_.apr_pool_create(
+                        &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+    try:
+        serr = _c_.svn_config_ensure(_c_config_dir, _c_tmp_pool)
+        if serr is not NULL:
+            pyerr = _svn.Svn_error().seterror(serr)
+            raise _svn.SVNerr(pyerr)
+        serr = _c_.svn_config_get_config(
+                        &_c_cfg_hash, _c_config_dir, _c_tmp_pool)
+        if serr is not NULL:
+            pyerr = _svn.Svn_error().seterror(serr)
+            raise _svn.SVNerr(pyerr)
+        IF SVN_API_VER >= (1, 8):
+            serr = _c_.svn_client_create_context2(
+                            &_c_ctx, _c_cfg_hash, _c_tmp_pool)
+            if serr is not NULL:
+                pyerr = _svn.Svn_error().seterror(serr)
+                raise _svn.SVNerr(pyerr)
+        ELSE:
+            serr = _c_.svn_client_create_context(&_c_ctx, _c_tmp_pool)
+            if serr is not NULL:
+                pyerr = _svn.Svn_error().seterror(serr)
+                raise _svn.SVNerr(pyerr)
+            _c_ctx[0].config = _c_cfg_hash
+        _c_empty_array = _c_.apr_array_make(
+                                _c_tmp_pool, 0,
+                                sizeof(_c_.svn_auth_provider_object_t *))
+        _c_.svn_auth_open(&_c_auth_baton, _c_empty_array, _c_tmp_pool)
+        _c_ctx[0].auth_baton = _c_auth_baton
+        ann_list = []
+        btn = CbBlameContainer(
+                    blame_func, ann_list, None, oldest_rev, include_text)
+        IF SVN_API_VER >= (1, 5):
+            _c_diff_opt = _c_.svn_diff_file_options_create(_c_tmp_pool)
+        IF SVN_API_VER >= (1, 7):
+            serr = _c_.svn_client_blame5(
+                        path_or_url,
+                        &(opt_rev._c_opt_revision),
+                        &(opt_oldest_rev._c_opt_revision),
+                        &(opt_rev._c_opt_revision),
+                        _c_diff_opt, _c_.FALSE, _c_.FALSE,
+                        _cb_get_annotated_source3, <void *>btn,
+                        _c_ctx, _c_tmp_pool)
+        ELIF SVN_API_VER >= (1, 5):
+            serr = _c_.svn_client_blame4(
+                        path_or_url,
+                        &(opt_rev._c_opt_revision),
+                        &(opt_oldest_rev._c_opt_revision),
+                        &(opt_rev._c_opt_revision),
+                        _c_diff_opt, _c_.FALSE, _c_.FALSE,
+                        _cb_get_annotated_source2, <void *>btn,
+                        _c_ctx, _c_tmp_pool)
+        ELIF SVN_API_VER >= (1, 4):
+            serr = _c_.svn_client_blame3(
+                        path_or_url,
+                        &(opt_rev._c_opt_revision),
+                        &(opt_oldest_rev._c_opt_revision),
+                        &(opt_rev._c_opt_revision),
+                        _c_diff_opt, _c_.FALSE,
+                        _cb_get_annotated_source2, <void *>btn,
+                        _c_ctx, _c_tmp_pool)
+        ELSE:
+            serr = _c_.svn_client_blame2(
+                        path_or_url,
+                        &(opt_rev._c_opt_revision),
+                        &(opt_oldest_rev._c_opt_revision),
+                        &(opt_rev._c_opt_revision),
+                        _cb_get_annotated_source, <void *>btn,
+                        _c_ctx, _c_tmp_pool)
+        if serr is not NULL:
+            pyerr = _svn.Svn_error().seterror(serr)
+            raise _svn.SVNerr(pyerr)
+    finally:
+        _c_.apr_pool_destroy(_c_tmp_pool)
+    return ann_list

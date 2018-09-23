@@ -578,7 +578,7 @@ def svn_stream_readline(svn_stream_t stream, const char *eol, pool=None):
 
 # baton wrapper ... call back function helper
 cdef class CbContainer(object):
-    def __cinit__(self, fnobj, btn, pool=None):
+    def __cinit__(self, fnobj, btn, pool=None, **m):
         assert callable(fnobj)
         self.fnobj = fnobj
         self.btn = btn

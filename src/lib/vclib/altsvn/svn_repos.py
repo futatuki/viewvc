@@ -53,7 +53,7 @@ def _path_parts(path):
 def _cleanup_path(path):
   """Return a cleaned-up Subversion filesystem path"""
   return b'/'.join(_path_parts(path))
-  
+
 
 def _fs_path_join(base, relative):
   return _cleanup_path(base + b'/' + relative)
@@ -68,7 +68,7 @@ def _compare_paths(path1, path2):
   # Are the paths exactly the same?
   if path1 == path2:
     return 0
-  
+
   # Skip past common prefix
   while (i < min_len) and (path1[i] == path2[i]):
     i = i + 1
@@ -81,7 +81,7 @@ def _compare_paths(path1, path2):
     char1 = path1[i:i+1]
   if (i < path2_len):
     char2 = path2[i:i+1]
-    
+
   if (char1 == b'/') and (i == path2_len):
     return 1
   if (char2 == b'/') and (i == path1_len):
@@ -116,7 +116,7 @@ def _split_revprops(revprops):
   date = _svn.datestr_to_date(datestr)
   return msg, author, date, revprops
 
-  
+
 class Revision(vclib.Revision):
   "Hold state for each revision's log entry."
   def __init__(self, rev, date, author, msg, size, lockinfo,
@@ -133,7 +133,7 @@ def _get_last_history_rev(fsroot, path):
   history = _svn_repos.svn_fs_history_prev(history, 0)
   history_path, history_rev = _svn_repos.svn_fs_history_location(history)
   return history_rev
-  
+
 def temp_checkout(svnrepos, path, rev):
   """Check out file revision to temporary file"""
   temp = tempfile.mktemp()
@@ -174,11 +174,11 @@ class FileContentsPipe:
           buffer.close()
 
       else:
-        chunk = _svn.svn_stream_read(self._stream, len)   
+        chunk = _svn.svn_stream_read(self._stream, len)
     if not chunk:
       self._eof = 1
     return chunk
-  
+
   def readline(self):
     chunk = None
     if not self._eof:
@@ -204,50 +204,10 @@ class FileContentsPipe:
   def eof(self):
     return self._eof
 
-class BlameSource:
-  def __init__(self, local_url, rev, first_rev, include_text, config_dir):
-    self.idx = -1
-    self.first_rev = first_rev
-    self.blame_data = []
-    self.include_text = include_text
-
-    ctx = client.svn_client_create_context()
-    core.svn_config_ensure(config_dir)
-    ctx.config = core.svn_config_get_config(config_dir)
-    ctx.auth_baton = core.svn_auth_open([])
-    try:
-      ### TODO: Is this use of FIRST_REV always what we want?  Should we
-      ### pass 1 here instead and do filtering later?
-      client.blame2(local_url, _rev2optrev(rev), _rev2optrev(first_rev),
-                    _rev2optrev(rev), self._blame_cb, ctx)
-    except _svn.SVNerr, e:
-      if e.get_code() == _svn.SVN_ERR_CLIENT_IS_BINARY_FILE:
-        raise vclib.NonTextualFileContents
-      raise
-
-  def _blame_cb(self, line_no, rev, author, date, text, pool):
-    prev_rev = None
-    if rev > self.first_rev:
-      prev_rev = rev - 1
-    if not self.include_text:
-      text = None
-    self.blame_data.append(vclib.Annotation(text, line_no + 1, rev,
-                                            prev_rev, author, None))
-
-  def __getitem__(self, idx):
-    if idx != self.idx + 1:
-      raise BlameSequencingError()
-    self.idx = idx
-    return self.blame_data[idx]
-
-
-class BlameSequencingError(Exception):
-  pass
-
 
 class SVNChangedPath(vclib.ChangedPath):
   """Wrapper around vclib.ChangedPath which handles path splitting."""
-  
+
   def __init__(self, path, rev, pathtype, base_path, base_rev,
                action, copied, text_changed, props_changed):
     path_parts = _path_parts(path or b'')
@@ -256,7 +216,7 @@ class SVNChangedPath(vclib.ChangedPath):
                                base_path_parts, base_rev, action,
                                copied, text_changed, props_changed)
 
-  
+
 class LocalSubversionRepository(vclib.Repository):
   def __init__(self, name, rootpath, authorizer, utilities, config_dir):
     if not (os.path.isdir(rootpath) \
@@ -297,7 +257,7 @@ class LocalSubversionRepository(vclib.Repository):
 
   def authorizer(self):
     return self.auth
-  
+
   def itemtype(self, path_parts, rev):
     rev = self._getrev(rev)
     basepath = self._getpath(path_parts)
@@ -374,7 +334,7 @@ class LocalSubversionRepository(vclib.Repository):
         boolean, default false. if set will return only newest single log
         entry
     """
-    assert sortby == vclib.SORTBY_DEFAULT or sortby == vclib.SORTBY_REV   
+    assert sortby == vclib.SORTBY_DEFAULT or sortby == vclib.SORTBY_REV
 
     path = self._getpath(path_parts)
     path_type = self.itemtype(path_parts, rev)  # does auth-check
@@ -428,8 +388,17 @@ class LocalSubversionRepository(vclib.Repository):
     rev = self._getrev(rev)
     fsroot = self._getroot(rev)
     return _svn_repos.svn_fs_node_proplist(fsroot, path)
-  
+
   def annotate(self, path_parts, rev, include_text=False):
+    def _blame_cb(btn, line_no, rev, author, date, text):
+      prev_rev = None
+      if rev > btn.first_rev:
+        prev_rev = rev - 1
+      if not btn.include_text:
+        text = None
+      btn.btn.append(vclib.Annotation(text, line_no + 1, rev,
+                                              prev_rev, author, date))
+    # annotate() body
     path = self._getpath(path_parts)
     path_type = self.itemtype(path_parts, rev)  # does auth-check
     if path_type != vclib.FILE:
@@ -440,13 +409,14 @@ class LocalSubversionRepository(vclib.Repository):
                                 {'svn_cross_copies': 1})
     youngest_rev, youngest_path = history[0]
     oldest_rev, oldest_path = history[-1]
-    source = BlameSource(_svn.rootpath2url(self.rootpath, path), youngest_rev,
-                         oldest_rev, include_text, self.config_dir)
+    source = _svn_repos._get_annotated_source(
+                    _svn.rootpath2url(self.rootpath, path), youngest_rev,
+                    oldest_rev, _blame_cb, self.config_dir, include_text)
     return source, youngest_rev
 
   def revinfo(self, rev):
-    return self._revinfo(rev, 1) 
-  
+    return self._revinfo(rev, 1)
+
   def rawdiff(self, path_parts1, rev1, path_parts2, rev2, type, options={}):
     p1 = self._getpath(path_parts1)
     p2 = self._getpath(path_parts2)
@@ -456,7 +426,7 @@ class LocalSubversionRepository(vclib.Repository):
       raise vclib.ItemNotFound(path_parts1)
     if not vclib.check_path_access(self, path_parts2, vclib.FILE, rev2):
       raise vclib.ItemNotFound(path_parts2)
-    
+
     args = vclib._diff_args(type, options)
 
     def _date_from_rev(rev):
@@ -483,7 +453,7 @@ class LocalSubversionRepository(vclib.Repository):
     if self.itemtype(path_parts, rev) != vclib.FILE:  # does auth-check
       raise vclib.Error("Path '%s' is not a file." % _norm(path))
     fsroot = self._getroot(self._getrev(rev))
-    return _svn_repos.svn_fs_file_length(fsroot, path)   
+    return _svn_repos.svn_fs_file_length(fsroot, path)
 
   ##--- helpers ---##
 
@@ -493,8 +463,8 @@ class LocalSubversionRepository(vclib.Repository):
     def _get_changed_paths(fsroot):
       """Return a 3-tuple: found_readable, found_unreadable, changed_paths."""
       changedpaths = {}
-      changes = _svn_repos._get_changed_paths_helper(self.fs_ptr, fsroot) 
-    
+      changes = _svn_repos._get_changed_paths_helper(self.fs_ptr, fsroot)
+
       # Copy the Subversion changes into a new hash, checking
       # authorization and converting them into ChangedPath objects.
       found_readable = found_unreadable = 0
@@ -523,7 +493,7 @@ class LocalSubversionRepository(vclib.Repository):
           pathtype = vclib.FILE
         else:
           pathtype = None
-  
+
         parts = _path_parts(path)
         if vclib.check_path_access(self, parts, pathtype, rev):
           if is_copy and change.base_path and (change.base_path != path):
@@ -559,7 +529,7 @@ class LocalSubversionRepository(vclib.Repository):
         copyfrom_rev = _svn.SVN_INVALID_REVNUM
         copyfrom_path = None
       return copyfrom_path, copyfrom_rev
-      
+
     def _simple_auth_check(fsroot):
       """Return a 2-tuple: found_readable, found_unreadable."""
       found_unreadable = found_readable = 0
@@ -586,7 +556,7 @@ class LocalSubversionRepository(vclib.Repository):
               parent_path = b'/' + self._getpath(parent_parts)
               parent_change = changes.get(parent_path)
               if not (parent_change and \
-                      (parent_change.change_kind in 
+                      (parent_change.change_kind in
                        (_svn_repos.svn_fs_path_change_add,
                         _svn_repos.svn_fs_path_change_replace))):
                 del(parent_parts[-1])
@@ -616,19 +586,19 @@ class LocalSubversionRepository(vclib.Repository):
         if found_readable and found_unreadable:
           break
       return found_readable, found_unreadable
-      
+
     def _revinfo_helper(rev, include_changed_paths):
       # Get the revision property info.  (Would use
       # editor.get_root_props(), but something is broken there...)
       revprops = _svn_repos.svn_fs_revision_proplist(self.fs_ptr, rev)
       msg, author, date, revprops = _split_revprops(revprops)
-  
+
       # Optimization: If our caller doesn't care about the changed
       # paths, and we don't need them to do authz determinations, let's
       # get outta here.
       if self.auth is None and not include_changed_paths:
         return date, author, msg, revprops, None
-  
+
       # If we get here, then we either need the changed paths because we
       # were asked for them, or we need them to do authorization checks.
       #
@@ -642,7 +612,7 @@ class LocalSubversionRepository(vclib.Repository):
       else:
         changedpaths = None
         found_readable, found_unreadable = _simple_auth_check(fsroot)
-        
+
       # Filter our metadata where necessary, and return the requested data.
       if found_unreadable:
         msg = None
@@ -661,7 +631,7 @@ class LocalSubversionRepository(vclib.Repository):
       cached_info = _revinfo_helper(rev, include_changed_paths)
       self._revinfo_cache[rev] = cached_info
     return tuple(cached_info)
-  
+
   def _log_helper(self, path, rev, lockinfo):
     rev_root = _svn_repos.svn_fs_revision_root(self.fs_ptr, rev)
     copyfrom_rev, copyfrom_path = _svn_repos.svn_fs_copied_from(rev_root, path)
@@ -686,7 +656,7 @@ class LocalSubversionRepository(vclib.Repository):
       kind = _svn_repos.svn_fs_check_path(fsroot, path)
       if kind is _svn_api.svn_node_file:
         show_all_logs = 1
-      
+
     # Instantiate a NodeHistory collector object, and use it to collect
     # history items for PATH@REV.
     try:
@@ -706,7 +676,7 @@ class LocalSubversionRepository(vclib.Repository):
         break
       rev_paths.append([hist_rev, hist_path])
     return rev_paths
-  
+
   def _getpath(self, path_parts):
     return b'/'.join(path_parts)
 
@@ -739,7 +709,7 @@ class LocalSubversionRepository(vclib.Repository):
     if kind == _svn_api.svn_node_file:
       return vclib.FILE
     return None
-  
+
   ##--- custom ---##
 
   def get_youngest_revision(self):
@@ -757,18 +727,18 @@ class LocalSubversionRepository(vclib.Repository):
       old_path = results[old_rev]
     except KeyError:
       raise vclib.ItemNotFound(path)
-  
+
     return _cleanup_path(old_path)
-  
+
   def created_rev(self, full_name, rev):
     return _svn_repos.svn_fs_node_created_rev(self._getroot(rev), full_name)
-  
+
   def last_rev(self, path, peg_revision, limit_revision=None):
     """Given PATH, known to exist in PEG_REVISION, find the youngest
     revision older than, or equal to, LIMIT_REVISION in which path
     exists.  Return that revision, and the path at which PATH exists in
     that revision."""
-    
+
     # Here's the plan, man.  In the trivial case (where PEG_REVISION is
     # the same as LIMIT_REVISION), this is a no-brainer.  If
     # LIMIT_REVISION is older than PEG_REVISION, we can use Subversion's
@@ -807,12 +777,12 @@ class LocalSubversionRepository(vclib.Repository):
             ### Not quite right.  Need a comparison function that only returns
             ### true when the two nodes are the same copy, not just related.
             cmp = _svn_repos.svn_fs_compare_ids(orig_id, mid_id)
-  
+
           if cmp in (0, 1):
             peg_revision = mid
           else:
             limit_revision = mid - 1
-  
+
         return peg_revision, path
     finally:
       pass
