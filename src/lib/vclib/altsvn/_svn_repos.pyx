@@ -1223,7 +1223,7 @@ cdef class CbBlameContainer(_svn.CbContainer):
     cdef _c_.svn_revnum_t first_rev
     cdef object include_text
     def __cinit__(
-            self, fnobj, btn, pool=None, first_rev=_svn.INVALID_REVNUM,
+            self, fnobj, btn, pool=None, first_rev=_c_.SVN_INVALID_REVNUM,
             include_text=False, **m):
         self.first_rev = first_rev
         self.include_text = include_text

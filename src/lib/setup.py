@@ -76,7 +76,8 @@ ext_modules = [
               include_dirs=["/usr/local/include/apr-1",
                             "/usr/local/include/subversion-1"],
               library_dirs=["/usr/local/lib"],
-              libraries=["apr-1", "svn_subr-1", "svn_fs-1", "svn_repos-1"]),
+              libraries=["apr-1", "svn_subr-1", "svn_fs-1", "svn_repos-1",
+                         "svn_client-1"]),
 ]
 
 setup(name='vclib.altsvn',
