@@ -700,9 +700,8 @@ IF PY_VERSION >= (3, 0, 0):
             return <void **>&(self._c_str)
 
 ELSE:
-    CStringTransStr = CStringTransBytes
-    # cdef object (*_c_string_to_str)(
-    #                     void *_c_ptr, _c_.apr_pool_t *_c_scratch_pool)
+    cdef class CStringTransStr(CStringTransBytes):
+        pass
 
 cdef class SvnStringTransBytes(TransPtr):
     def __cinit__(self):
@@ -730,9 +729,8 @@ IF PY_VERSION >= (3, 0, 0):
             return <void **>&(self._c_svn_str)
 
 ELSE:
-    SvnStringTransStr = SvnStringTransBytes
-    # cdef object (*_svn_string_to_str)(
-    #                     void *_c_ptr, _c_.apr_pool_t *_c_scratch_pool)
+    cdef class SvnStringTransStr(SvnStringTransBytes):
+        pass
 
 cdef class SvnBooleanTrans(TransPtr):
     cdef object to_object(self):

@@ -74,6 +74,9 @@ IF PY_VERSION >= (3, 0, 0):
         cdef object to_object(self)
         cdef void set_ptr(self, void *_c_ptr)
         cdef void ** ptr_ref(self)
+ELSE:
+    cdef class CStringTransStr(CStringTransBytes):
+        pass
 
 cdef class SvnStringTransBytes(TransPtr):
     cdef svn_string.svn_string_t * _c_svn_str
@@ -87,6 +90,9 @@ IF PY_VERSION >= (3, 0, 0):
         cdef object to_object(self)
         cdef void set_ptr(self, void *_c_ptr)
         cdef void ** ptr_ref(self)
+ELSE:
+    cdef class SvnStringTransStr(SvnStringTransBytes):
+        pass
 
 cdef class SvnBooleanTrans(TransPtr):
     cdef svn_types.svn_boolean_t _c_bool
