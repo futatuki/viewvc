@@ -10,7 +10,7 @@ cdef class svn_fs_t(object):
 
 cdef class svn_fs_root_t(object):
     cdef _c_.svn_fs_root_t * _c_ptr
-    cdef object _pool
+    cdef object pool
     cdef set_fs_root(self, _c_.svn_fs_root_t * fs_root)
 
 cdef class svn_fs_id_t(object):

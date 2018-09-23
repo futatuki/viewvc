@@ -13,6 +13,7 @@
 "Version Control lib driver for locally accessible Subversion repositories"
 
 import vclib
+import sys
 import os
 import os.path
 import io
@@ -22,7 +23,6 @@ import popen
 import re
 import urllib
 from . import _svn
-from . import _svn_fs
 from . import _svn_repos
 
 ### Require Subversion 1.3.1 or better.
@@ -475,7 +475,7 @@ class LocalSubversionRepository(vclib.Repository):
         if change.base_path:
           change.base_path = _cleanup_path(change.base_path)
         is_copy = 0
-        if change.action == _svn_repos.svn_fs_path_change_add
+        if change.action == _svn_repos.svn_fs_path_change_add:
           action = vclib.ADDED
         elif change.action == _svn_repos.svn_fs_path_change_delete:
           action = vclib.DELETED

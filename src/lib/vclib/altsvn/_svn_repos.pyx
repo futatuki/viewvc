@@ -13,14 +13,14 @@ cdef class svn_fs_t(object):
         self.roots = {}
     def __init__(self, pool=None, **m):
         if pool is not None:
-            self.pool = _svn.Apr_pool(pool)
+            self.pool = _svn.Apr_Pool(pool)
         else:
-            self.pool = _svn.Apr_pool(_svn._root_pool)
+            self.pool = _svn.Apr_Pool(_svn._root_pool)
     cdef set_fs(self, _c_.svn_fs_t * fs):
         self._c_ptr = fs
         self.roots = {}
         return self
-    def _get_root(self, rev):
+    def _getroot(self, rev):
         try:
             return self.roots[rev]
         except KeyError:
@@ -32,7 +32,7 @@ cdef class svn_fs_root_t(object):
     # cdef _c_.svn_fs_root_t * _c_ptr
     def __cinit__(self):
         self._c_ptr = NULL
-        self._pool = None
+        self.pool = None
     cdef set_fs_root(self, _c_.svn_fs_root_t * fs_root):
         self._c_ptr = fs_root
         return self
@@ -40,7 +40,7 @@ cdef class svn_fs_root_t(object):
         if self._c_ptr is not NULL:
             _c_.svn_fs_close_root(self._c_ptr)
             self._c_ptr = NULL
-            self._pool = None
+            self.pool = None
 
 cdef class svn_fs_id_t(object):
     # cdef _c_.svn_fs_id_t * _c_ptr
@@ -62,6 +62,7 @@ def svn_fs_revision_root(svn_fs_t fs, _c_.svn_revnum_t rev, pool=None):
     cdef _c_.svn_fs_root_t * _c_root
     cdef _c_.svn_error_t * serr
     cdef _svn.Svn_error pyerr
+    cdef svn_fs_root_t root
 
     if pool is not None:
         assert (    isinstance(pool, _svn.Apr_Pool)
@@ -828,7 +829,7 @@ cdef class _get_changed_paths_EditBaton(object):
     def __init__(self, svn_fs_t fs_ptr, svn_fs_root_t root):
         self.changes = {}
         self.fs_ptr = fs_ptr
-        self.fs_root = root
+        self.root = root
         # in vclib, svn_fs_root_t root is always revision root
         assert _c_.svn_fs_is_revision_root(root._c_ptr)
         self.base_rev = (
@@ -844,8 +845,8 @@ cdef class _get_changed_paths_EditBaton(object):
         if idx == -1:
             return parent_path + path
         return parent_path + path[idx+1:]
-    def _get_root(self, rev):
-        return self.fs_ptr._get_root(rev)
+    def _getroot(self, rev):
+        return self.fs_ptr._getroot(rev)
 
 cdef class _get_changed_paths_DirBaton(object):
     cdef _get_changed_paths_EditBaton edit_baton
@@ -882,7 +883,7 @@ cdef _c_.svn_error_t * _cb_changed_paths_delete_entry(
     pb = <_get_changed_paths_DirBaton>parent_baton
     eb = pb.edit_baton
     base_path = eb._make_base_path(pb.base_path, path)
-    if svn_fs_is_dir(eb._get_root(pb.base_rev), base_path):
+    if svn_fs_is_dir(eb._getroot(pb.base_rev), base_path):
         item_type = _c_.svn_node_dir
     else:
         item_type = _c_.svn_node_file
@@ -1156,7 +1157,7 @@ cdef _c_.svn_error_t * _cb_collect_node_history(
         assert revision < btn.oldest_rev
     path = <bytes>_c_path
     if btn.show_all_logs == _c_.FALSE:
-        rev_root = btn.fs_ptr._get_root(revision)
+        rev_root = btn.fs_ptr._getroot(revision)
         changed_paths = svn_fs_paths_changed(rev_root)
         if path not in changed_paths:
             # Look for a copied parent

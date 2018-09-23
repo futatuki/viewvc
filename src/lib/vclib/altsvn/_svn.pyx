@@ -172,21 +172,21 @@ SVN_STREAM_CHUNK_SIZE = _c_.SVN_STREAM_CHUNK_SIZE
 
 # from "svn_props.h"
 IF PY_VERSION < (3, 0, 0):
-    SVN_PROP_REVISION_LOG   = _c_.SVN_PROP_REVISION_LOG
-    SVN_PROP_REVISION_AUTOR = _c_.SVN_PROP_REVISION_AUTHOR
-    SVN_PROP_REVISION_DATE  = _c_.SVN_PROP_REVISION_DATE
-    SVN_PROP_EXECUTABLE     = _c_.SVN_PROP_EXECUTABLE
-    SVN_PROP_SPECIAL        = _c_.SVN_PROP_SPECIAL
+    SVN_PROP_REVISION_LOG    = _c_.SVN_PROP_REVISION_LOG
+    SVN_PROP_REVISION_AUTHOR = _c_.SVN_PROP_REVISION_AUTHOR
+    SVN_PROP_REVISION_DATE   = _c_.SVN_PROP_REVISION_DATE
+    SVN_PROP_EXECUTABLE      = _c_.SVN_PROP_EXECUTABLE
+    SVN_PROP_SPECIAL         = _c_.SVN_PROP_SPECIAL
 ELSE:
-    SVN_PROP_REVISION_LOG   = (
+    SVN_PROP_REVISION_LOG    = (
             <bytes>(_c_.SVN_PROP_REVISION_LOG)).decode('utf-8')
-    SVN_PROP_REVISION_AUTOR = (
+    SVN_PROP_REVISION_AUTHOR = (
             <bytes>(_c_.SVN_PROP_REVISION_AUTHOR)).decode('utf-8')
-    SVN_PROP_REVISION_DATE  = (
+    SVN_PROP_REVISION_DATE   = (
             <bytes>(_c_.SVN_PROP_REVISION_DATE)).decode('utf-8')
-    SVN_PROP_EXECUTABLE     = (
+    SVN_PROP_EXECUTABLE      = (
             <bytes>(_c_.SVN_PROP_EXECUTABLE)).decode('utf-8')
-    SVN_PROP_SPECIAL        = (
+    SVN_PROP_SPECIAL         = (
             <bytes>(_c_.SVN_PROP_SPECIAL)).decode('utf-8')
 
 # from "svn_version.h"
@@ -596,7 +596,9 @@ cdef class TransPtr(object):
         raise NotImplemented()
 
 cdef class HashTrans(TransPtr):
-    def __cinit__(self, **m):
+    def __cinit__(
+            self, TransPtr key_trans, TransPtr val_trans,
+            scratch_pool=None, **m):
         self._c_tmp_pool = NULL
         self._c_hash = NULL
     def __init__(
