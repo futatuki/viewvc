@@ -22,6 +22,7 @@ cdef Apr_Pool _root_pool
 
 cdef class Svn_error(object):
     cdef svn_types.svn_error_t * _c_error
+    cdef object str_msg
     cdef seterror(self, svn_types.svn_error_t * err)
     cdef svn_types.svn_error_t * geterror(self)
 
@@ -54,7 +55,7 @@ cdef class HashTrans(TransPtr):
     cdef void set_ptr(self, void *_c_ptr)
     cdef void ** ptr_ref(self)
 
-ctypedef object (*ptr_to_pyobj_func_t)(void *_c_ptr, 
+ctypedef object (*ptr_to_pyobj_func_t)(void *_c_ptr,
                                        apr_pools.apr_pool_t * _c_scratch_pool)
 
 cdef object hash_to_dict(apr_hash.apr_hash_t * _c_hash,

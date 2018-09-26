@@ -100,6 +100,7 @@ ELSE:
 # from "svn_types.h" representation of svn_error_t
 cdef class Svn_error(object):
 #    cdef _c_.svn_error_t * _c_error
+#    cdef object str_msg
     def __cinit__(self, msg=None, stat=None):
         self._c_error = NULL
     def __init__(self, msg=None, stat=None):
@@ -108,8 +109,11 @@ cdef class Svn_error(object):
         if stat:
             ast = stat
             if msg:
-                str_msg = str(msg)
-                _c_msg = str_msg
+                self.str_msg = str(msg)
+                IF PY_VERSION < (3, 0, 0):
+                    _c_msg = self.str_msg
+                ELSE:
+                    _c_msg = str_msg.encode('utf-8')
             else:
                 _c_msg = NULL
             self._c_error = _c_.svn_error_create(stat, NULL, _c_msg)
@@ -131,12 +135,14 @@ cdef class Svn_error(object):
             if eptr.message is not NULL:
                 estr = eptr.message
             else:
-                estr = ''
+                estr = b''
             eptr = eptr.child
             while eptr is not NULL:
                 if eptr.message is not NULL:
-                    estr = estr + '\n' + eptr.message
+                    estr = estr + b'\n' + eptr.message
                 eptr = eptr.child
+            IF PY_VERSION >= (3, 0, 0):
+                estr = eptr.decode('utf-8')
         return estr
     def __dealloc__(self):
         if self._c_error is not NULL:
@@ -155,7 +161,7 @@ class SVNerr(General):
         return str(self.svnerr)
     def get_code(self):
         if (<Svn_error>self.svnerr)._c_error is NULL:
-            return None
+            return 0
         else:
             return (<Svn_error>self.svnerr)._c_error.apr_err
     def get_code_list(self):
