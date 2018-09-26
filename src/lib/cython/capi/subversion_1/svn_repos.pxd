@@ -1,6 +1,7 @@
 include "_svn_api_ver.pxi"
 from apr_1.apr_pools cimport apr_pool_t
 from apr_1.apr_hash cimport apr_hash_t
+from apr_1.apr_tables cimport apr_array_header_t
 from subversion_1.svn_types cimport svn_error_t, svn_boolean_t, svn_revnum_t
 from subversion_1.svn_fs cimport svn_fs_t, svn_fs_root_t
 from subversion_1.svn_delta cimport svn_delta_editor_t 
@@ -43,3 +44,9 @@ cdef extern from "svn_repos.h" nogil:
             svn_repos_authz_func_t authz_read_func, void * authz_read_baton,
             svn_revnum_t start, svn_revnum_t end, svn_boolean_t cross_copies,
             apr_pool_t * pool)
+    svn_error_t * svn_repos_trace_node_locations(
+            svn_fs_t * fs, apr_hash_t ** locations, const char *fs_path,
+            svn_revnum_t peg_revision,
+            const apr_array_header_t *location_revisions,
+            svn_repos_authz_func_t authz_read_func, void *authz_read_baton,
+            apr_pool_t *pool)

@@ -41,7 +41,7 @@ def _norm(s, encoding=_default_encoding, errors='strict'):
     return (s.decode(encoding, errors)
                 if not isinstance(s, str) and isinstance(s, bytes) else s)
 
-def _allow_all(root, path, pool):
+def _allow_all(root, path, baton, pool):
   """Generic authz_read_func that permits access to all paths"""
   return 1
 
@@ -717,8 +717,8 @@ class LocalSubversionRepository(vclib.Repository):
 
   def get_location(self, path, rev, old_rev):
     try:
-      results = repos.svn_repos_trace_node_locations(self.fs_ptr, path,
-                                                     rev, [old_rev], _allow_all)
+      results = _svn_repos.svn_repos_trace_node_locations(
+                      self.fs_ptr, path, rev, [old_rev], _allow_all, None)
     except _svn.SVNerr, e:
       if e.get_code() == _svn.SVN_ERR_FS_NOT_FOUND:
         raise vclib.ItemNotFound(path)

@@ -10,3 +10,4 @@ cdef extern from "apr_tables.h" nogil:
         char * elts
     apr_array_header_t * apr_array_make(
             apr_pool_t * p, int nelts, int elt_size)
+    void * apr_array_push(apr_array_header_t * arr)

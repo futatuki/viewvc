@@ -811,8 +811,113 @@ def svn_repos_open(const char * path, result_pool=None, scratch_pool=None):
             pass
     return svn_repos_t().set_repos(_c_repos)
 
+
 def svn_repos_fs(svn_repos_t repos):
     return svn_fs_t().set_fs(_c_.svn_repos_fs(repos._c_ptr))
+
+
+cdef _c_.svn_error_t * _cb_svn_repos_authz_func_wrapper(
+        _c_.svn_boolean_t * _c_allowed, _c_.svn_fs_root_t * _c_root,
+        const char * _c_path, void * baton, _c_.apr_pool_t * _c_pool) with gil:
+    cdef _svn.CbContainer btn
+    cdef svn_fs_root_t root
+    cdef bytes path
+    cdef _svn.Apr_Pool pool
+    cdef object allowed
+    cdef object pyerr
+    cdef _svn.Svn_error svnerr 
+    cdef _c_.svn_error_t * _c_err
+
+    btn  = <_svn.CbContainer>baton
+    root = svn_fs_root_t().set_fs_root(_c_root)
+    path = _c_path
+    pool = _svn.Apr_Pool.__new__(_svn.Apr_Pool, pool=None)
+    pool.set_pool(_c_pool)
+    _c_err = NULL
+    try:
+        allowed = btn.fnobj(root, path, btn.btn, pool)
+        _c_allowed[0] = _c_.TRUE if allowed else _c_.FALSE
+    except _svn.SVNerr, pyerr:
+        svnerr = pyerr.svnerr
+        _c_err = _c_.svn_error_dup(svnerr.geterror())
+        del pyerr
+    except AssertionError, err:
+        _c_err = _c_.svn_error_create(
+                    _c_.SVN_ERR_ASSERTION_FAIL, NULL, str(err))
+    except KeyboardInterrupt, err:
+        _c_err = _c_.svn_error_create(
+                    _c_.SVN_ERR_CANCELLED, NULL, str(err))
+    except BaseException, err:
+        _c_err = _c_.svn_error_create(
+                    _c_.SVN_ERR_BASE, NULL, str(err))
+    return _c_err
+
+cdef _c_.apr_array_header_t * _make_revnum_array(
+        object revisions, _c_.apr_pool_t * pool) except? NULL:
+    cdef _c_.apr_array_header_t * _c_arrayptr
+    cdef object rev
+    cdef const char *strptr
+    cdef int nelts
+
+    nelts = len(revisions)
+    _c_arrayptr = _c_.apr_array_make(pool, nelts, sizeof(_c_.svn_revnum_t))
+    if _c_arrayptr is NULL:
+        _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+        raise _svn.PoolError("fail to allocate array for revisions")
+    for rev in revisions:
+        (<_c_.svn_revnum_t *>(_c_.apr_array_push(_c_arrayptr)))[0] = rev
+    return _c_arrayptr
+
+cdef class SvnRevnumPtrTrans(_svn.TransPtr):
+    cdef _c_.svn_revnum_t * _c_revptr
+    cdef object to_object(self):
+        return <object>((self._c_revptr)[0])
+    cdef void set_c_revptr(self, _c_.svn_revnum_t * _c_revptr):
+        self._c_revptr = _c_revptr
+    cdef void ** ptr_ref(self):
+        return <void **>&(self._c_revptr)
+
+def svn_repos_trace_node_locations(
+        svn_fs_t fs, const char * fs_path, _c_.svn_revnum_t peg_revision,
+        object location_revisions, object authz_read_func,
+        object authz_read_baton, object pool=None):
+    cdef _c_.apr_status_t ast
+    cdef _svn.Apr_Pool tmp_pool
+    cdef _c_.apr_array_header_t * _c_location_rivisions
+    cdef _svn.CbContainer btn
+    cdef _c_.apr_hash_t _c_locations
+    cdef SvnRevnumPtrTrans revtrans
+    cdef _svn.CStringTransBytes transbytes
+    cdef _svn.HashTrans loctrans
+    cdef _c_.svn_error_t * serr
+    cdef object locations
+       
+    assert callable(authz_read_func)
+    if pool is not None:
+        assert (    isinstance(pool, _svn.Apr_Pool)
+                and (<_svn.Apr_Pool>pool)._c_pool is not NULL)
+        tmp_pool = _svn.Apr_Pool(pool)
+    else:
+        tmp_pool = _svn.Apr_Pool(_svn._root_pool)
+    try:
+        _c_location_revisions = _make_revnum_array(location_revisions,
+                                                   tmp_pool._c_pool)
+        btn = _svn.CbContainer(authz_read_func, authz_read_baton, tmp_pool)
+        loctrans = _svn.HashTrans(SvnRevnumPtrTrans(),
+                                  _svn.CStringTransBytes(),
+                                  tmp_pool)
+        serr = _c_.svn_repos_trace_node_locations(
+                    fs._c_ptr, <_c_.apr_hash_t **>(loctrans.ptr_ref()),
+                    fs_path, peg_revision, _c_location_revisions,
+                    _cb_svn_repos_authz_func_wrapper, <void *>btn,
+                    tmp_pool._c_pool)
+        if serr is not NULL:
+            pyerr = _svn.Svn_error().seterror(serr)
+            raise _svn.SVNerr(pyerr)
+        locations = loctrans.to_object()
+    finally:
+        del tmp_pool
+    return locations
 
 # vclib custom revinfo helper
 # copy from subversion/bindings/swig/python/svn/repos.py, class ChangedPath,
