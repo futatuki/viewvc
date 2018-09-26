@@ -287,9 +287,9 @@ class LocalSubversionRepository(vclib.Repository):
     dirents = _svn_repos.svn_fs_dir_entries(fsroot, path)
     entries = [ ]
     for entry in dirents.values():
-      if entry.kind == _svn_api.svn_node_dir:
+      if entry.kind == _svn.svn_node_dir:
         kind = vclib.DIR
-      elif entry.kind == _svn_api.svn_node_file:
+      elif entry.kind == _svn.svn_node_file:
         kind = vclib.FILE
       if vclib.check_path_access(self, path_parts + [entry.name], kind, rev):
         entries.append(vclib.DirEntry(entry.name, kind))
@@ -487,9 +487,9 @@ class LocalSubversionRepository(vclib.Repository):
            and change.base_path \
            and change.base_rev:
           is_copy = 1
-        if change.item_kind == _svn_api.svn_node_dir:
+        if change.item_kind == _svn.svn_node_dir:
           pathtype = vclib.DIR
-        elif change.item_kind == _svn_api.svn_node_file:
+        elif change.item_kind == _svn.svn_node_file:
           pathtype = vclib.FILE
         else:
           pathtype = None
@@ -539,9 +539,9 @@ class LocalSubversionRepository(vclib.Repository):
         change = changes[path]
         pathtype = None
         if hasattr(change, 'node_kind'):
-          if change.node_kind == _svn_api.svn_node_file:
+          if change.node_kind == _svn.svn_node_file:
             pathtype = vclib.FILE
-          elif change.node_kind == _svn_api.svn_node_dir:
+          elif change.node_kind == _svn.svn_node_dir:
             pathtype = vclib.DIR
         parts = _path_parts(path)
         if pathtype is None:
@@ -654,7 +654,7 @@ class LocalSubversionRepository(vclib.Repository):
     if not show_all_logs:
       # See if the path is a file or directory.
       kind = _svn_repos.svn_fs_check_path(fsroot, path)
-      if kind is _svn_api.svn_node_file:
+      if kind is _svn.svn_node_file:
         show_all_logs = 1
 
     # Instantiate a NodeHistory collector object, and use it to collect
@@ -704,9 +704,9 @@ class LocalSubversionRepository(vclib.Repository):
       kind = _svn_repos.svn_fs_check_path(self._getroot(rev), path)
     except:
       return None
-    if kind == _svn_api.svn_node_dir:
+    if kind == _svn.svn_node_dir:
       return vclib.DIR
-    if kind == _svn_api.svn_node_file:
+    if kind == _svn.svn_node_file:
       return vclib.FILE
     return None
 

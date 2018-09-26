@@ -1,5 +1,7 @@
 include "_svn_api_ver.pxi"
 include "_py_ver.pxi"
+from cpython.ref cimport PyObject
+from libc.string cimport memcpy
 cimport _svn_repos_capi as _c_
 cimport _svn
 from . import _svn
@@ -95,6 +97,8 @@ cdef object _apply_svn_api_root_path_arg1(
     else:
         ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+    if ast:
+        raise _svn.PoolError()
     try:
         serr = svn_api(rv_trans.ptr_ref(), root._c_ptr, path, _c_tmp_pool)
         if serr is not NULL:
@@ -351,6 +355,8 @@ def svn_fs_node_history(
         else:
             ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+        if ast:
+            raise _svn.PoolError()
     try:
         IF SVN_API_VER >= (1, 10):
             serr = _c_.svn_fs_node_history2(
@@ -400,6 +406,8 @@ def svn_fs_history_prev(
         else:
             ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+        if ast:
+            raise _svn.PoolError()
     try:
         IF SVN_API_VER >= (1, 10):
             serr = _c_.svn_fs_history_prev2(
@@ -436,6 +444,8 @@ def svn_fs_history_location(svn_fs_history_t history, scratch_pool=None):
     else:
         ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+    if ast:
+        raise _svn.PoolError()
     try:
         serr = _c_.svn_fs_history_location(
                         &_c_path, &revision, history._c_ptr, _c_tmp_pool)
@@ -498,6 +508,8 @@ def svn_fs_node_created_rev(
     else:
         ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+    if ast:
+        raise _svn.PoolError()
     try:
         serr = _c_.svn_fs_node_created_rev(
                     &_c_revision, root._c_ptr, path, _c_tmp_pool)
@@ -538,6 +550,8 @@ def svn_fs_copied_from(
     else:
         ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+    if ast:
+        raise _svn.PoolError()
     try:
         serr = _c_.svn_fs_copied_from(
                         &_c_rev, &_c_from_path, root._c_ptr, path, _c_tmp_pool)
@@ -555,7 +569,7 @@ class DirEntry(object):
     def __init__(self, name, id, kind):
         self.name = name
         self.id = id
-        self.id = kind
+        self.kind = kind
 
 cdef class DirEntryTrans(_svn.TransPtr):
     cdef object to_object(self):
@@ -634,6 +648,8 @@ def svn_fs_youngest_rev(svn_fs_t fs, scratch_pool=None):
     else:
         ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+    if ast:
+        raise _svn.PoolError()
     try:
         serr = _c_.svn_fs_youngest_rev(
                         &_c_rev, fs._c_ptr, _c_tmp_pool)
@@ -665,9 +681,11 @@ def svn_fs_revision_proplist(
     else:
         ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
-    prop_trans = _svn.HashTrans(_svn.CStringTransStr(),
-                                _svn.SvnStringTransStr(), scratch_pool)
+    if ast:
+        raise _svn.PoolError()
     try:
+        prop_trans = _svn.HashTrans(_svn.CStringTransStr(),
+                                    _svn.SvnStringTransStr(), scratch_pool)
         IF SVN_API_VER >= (1, 10):
             serr = _c_.svn_fs_revision_proplist2(
                         <_c_.apr_hash_t **>(prop_trans.ptr_ref()),
@@ -725,6 +743,8 @@ def svn_fs_get_lock(svn_fs_t fs, const char * path, scratch_pool=None):
     else:
         ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+    if ast:
+        raise _svn.PoolError()
     try:
         serr = _c_.svn_fs_get_lock(
                         &_c_lock, fs._c_ptr, path, _c_tmp_pool)
@@ -733,7 +753,6 @@ def svn_fs_get_lock(svn_fs_t fs, const char * path, scratch_pool=None):
         _c_.apr_pool_destroy(_c_tmp_pool)
     return lock
 
-
 
 cdef class svn_repos_t(object):
     # cdef _c_.svn_repos_t * _c_ptr
@@ -770,6 +789,8 @@ def svn_repos_open(const char * path, result_pool=None, scratch_pool=None):
         else:
             ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+        if ast:
+            raise _svn.PoolError()
     try:
         IF SVN_API_VER >= (1, 9):
             serr = _c_.svn_repos_open3(
@@ -797,15 +818,15 @@ def svn_repos_fs(svn_repos_t repos):
 # copy from subversion/bindings/swig/python/svn/repos.py, class ChangedPath,
 # with Cython and customize for vclib.svn.svn_repos
 cdef class _ChangedPath(object):
-    cdef _c_.svn_node_kind_t item_kind
-    cdef _c_.svn_boolean_t prop_changes
-    cdef _c_.svn_boolean_t prop_text_changed
-    cdef bytes base_path
-    cdef _c_.svn_revnum_t base_rev
-    cdef bytes path
-    cdef _c_.svn_boolean_t added
-    # we don't use 'None' action
-    cdef _c_.svn_fs_path_change_kind_t action
+    # cdef _c_.svn_node_kind_t item_kind
+    # cdef _c_.svn_boolean_t prop_changes
+    # cdef _c_.svn_boolean_t text_changed
+    # cdef bytes base_path
+    # cdef _c_.svn_revnum_t base_rev
+    # cdef bytes path
+    # cdef _c_.svn_boolean_t added
+    ### we don't use 'None' action
+    # cdef _c_.svn_fs_path_change_kind_t action
     def __init__(self,
                  _c_.svn_node_kind_t item_kind,
                  _c_.svn_boolean_t prop_changes,
@@ -821,11 +842,50 @@ cdef class _ChangedPath(object):
         self.path = path
         self.action = action
 
+cdef const char * _c_make_base_path(
+            const char * parent_path, const char * path,
+            _c_.apr_pool_t * pool):
+    cdef const char * cpivot
+    cdef char * pivot
+    cdef size_t p_len
+    cdef int need_slash
+    cdef const char * bnh # base name head
+    cdef size_t b_len
+    cdef char * new_base
+
+    p_len = 0
+    if parent_path[0] == 0:
+        need_slash = 0
+    else:
+        cpivot = parent_path
+        p_len += 1
+        while cpivot[1] != 0:
+            p_len += 1
+            cpivot += 1
+        if cpivot[0] != 47: # 47 == ord('/')
+            need_slash = 1
+    bnh = path
+    cpivot = path
+    while cpivot[0] != 0:
+        if cpivot[0] == 47:
+            bnh = cpivot + 1
+        cpivot += 1
+    b_len = cpivot - bnh
+    new_base = <char *>_c_.apr_palloc(pool, (p_len + need_slash + b_len + 1))
+    if new_base == NULL:
+        return NULL
+    if p_len:
+        memcpy(<void *>new_base, <const void *>parent_path, p_len)
+    pivot = new_base + p_len
+    if need_slash:
+        pivot[0] = <char>47
+        pivot += 1
+    if b_len:
+        memcpy(<void *>pivot, <const void *>bnh, b_len)
+    pivot[b_len] = <char>0
+    return <const char *>new_base
+
 cdef class _get_changed_paths_EditBaton(object):
-    cdef dict changes
-    cdef svn_fs_t fs_ptr
-    cdef svn_fs_root_t root
-    cdef _c_.svn_revnum_t base_rev
     def __init__(self, svn_fs_t fs_ptr, svn_fs_root_t root):
         self.changes = {}
         self.fs_ptr = fs_ptr
@@ -848,18 +908,6 @@ cdef class _get_changed_paths_EditBaton(object):
     def _getroot(self, rev):
         return self.fs_ptr._getroot(rev)
 
-cdef class _get_changed_paths_DirBaton(object):
-    cdef _get_changed_paths_EditBaton edit_baton
-    cdef bytes path
-    cdef bytes base_path
-    cdef _c_.svn_revnum_t base_rev
-    def __init__(self, path, base_path, _c_.svn_revnum_t base_rev,
-                 _get_changed_paths_EditBaton edit_baton):
-        self.path = path
-        self.base_path = base_path
-        self.base_rev = base_rev
-        self.edit_baton = edit_baton
-
 # custom call back used by get_changed_paths(), derived from
 # subversion/bindings/swig/python/svn/repos.py, class ChangedCollector,
 # with Cython
@@ -867,22 +915,45 @@ cdef _c_.svn_error_t * _cb_changed_paths_open_root(
         void * _c_edit_baton, _c_.svn_revnum_t base_revision,
         _c_.apr_pool_t * result_pool, void ** _c_root_baton) with gil:
     cdef _get_changed_paths_EditBaton eb
-    cdef _get_changed_paths_DirBaton rb
+    cdef _get_changed_paths_DirBaton * rb
+    cdef _c_.svn_error_t * _c_err
+
     eb = <_get_changed_paths_EditBaton>_c_edit_baton
-    rb = _get_changed_paths_DirBaton(
-                    b'', b'', eb.base_rev, eb)
+    rb = <_get_changed_paths_DirBaton *>_c_.apr_palloc(
+                eb._c_p_pool, sizeof(_get_changed_paths_DirBaton))
+    if rb is NULL:
+         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         return _c_err
+    rb[0].path = <const char *>_c_.apr_palloc(eb._c_p_pool, 1)
+    if rb[0].path is NULL:
+         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         return _c_err
+    (<char *>(rb[0].path))[0] = <char>0
+    rb[0].base_path = rb[0].path
+    rb[0].base_rev = eb.base_rev
+    rb[0].edit_baton = <void *>eb
     _c_root_baton[0] = <void *>rb
     return NULL
 
 cdef _c_.svn_error_t * _cb_changed_paths_delete_entry(
-        const char * path, _c_.svn_revnum_t revision,
+        const char * _c_path, _c_.svn_revnum_t revision,
         void * parent_baton, _c_.apr_pool_t * scratch_pool) with gil:
-    cdef _get_changed_paths_DirBaton pb
+    cdef _get_changed_paths_DirBaton * pb
     cdef _get_changed_paths_EditBaton eb
+    cdef bytes path
+    cdef bytes base_path
+    cdef const char * _c_base_path
+    cdef _c_.svn_error_t * _c_err
     cdef _c_.svn_node_kind_t item_type
-    pb = <_get_changed_paths_DirBaton>parent_baton
-    eb = pb.edit_baton
-    base_path = eb._make_base_path(pb.base_path, path)
+
+    pb = <_get_changed_paths_DirBaton *>parent_baton
+    eb = <_get_changed_paths_EditBaton>(pb[0].edit_baton)
+    path = _c_path
+    _c_base_path = _c_make_base_path(pb[0].base_path, path, scratch_pool)
+    if _c_base_path is NULL:
+         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         return _c_err
+    base_path = <bytes>_c_base_path
     if svn_fs_is_dir(eb._getroot(pb.base_rev), base_path):
         item_type = _c_.svn_node_dir
     else:
@@ -891,23 +962,32 @@ cdef _c_.svn_error_t * _cb_changed_paths_delete_entry(
                                     _c_.FALSE,
                                     _c_.FALSE,
                                     base_path,
-                                    pb.base_rev,
+                                    pb[0].base_rev,
                                     path,
                                     _c_.FALSE,
                                     _c_.svn_fs_path_change_delete)
     return NULL
 
 cdef _c_.svn_error_t * _cb_changed_paths_add_directory(
-        const char * path, void * parent_baton,
-        const char * copyfrom_path, _c_.svn_revnum_t copyfrom_revision,
+        const char * _c_path, void * parent_baton,
+        const char * _c_copyfrom_path, _c_.svn_revnum_t copyfrom_revision,
         _c_.apr_pool_t * result_pool, void ** child_baton) with gil:
-    cdef _get_changed_paths_DirBaton pb
+    cdef _get_changed_paths_DirBaton * pb
     cdef _get_changed_paths_EditBaton eb
-    cdef _get_changed_paths_DirBaton cb
+    cdef bytes path
+    cdef object copyfrom_path
+    cdef _get_changed_paths_DirBaton * cb
+    cdef _c_.svn_error_t * _c_err
     cdef _c_.svn_fs_path_change_kind_t action
-    pb = <_get_changed_paths_DirBaton>parent_baton
-    eb = pb.edit_baton
-    if <bytes>path in eb.changes:
+
+    pb = <_get_changed_paths_DirBaton *>parent_baton
+    eb = <_get_changed_paths_EditBaton>(pb[0].edit_baton)
+    path = _c_path
+    if _c_copyfrom_path is NULL:
+        copyfrom_path = None
+    else:
+        copyfrom_path = _c_copyfrom_path
+    if path in eb.changes:
         action = _c_.svn_fs_path_change_replace
     else:
         action = _c_.svn_fs_path_change_add
@@ -919,31 +999,55 @@ cdef _c_.svn_error_t * _cb_changed_paths_add_directory(
                                     path,
                                     _c_.TRUE,
                                     action)
-    if copyfrom_path is not NULL:
-        assert copyfrom_revision >= 0
-        base_path = copyfrom_path
+    if copyfrom_path and (copyfrom_revision >= 0):
+        _c_base_path = _c_copyfrom_path
     else:
-        base_path = path
-    # it is endored to allocate child baton from result_pool, but
-    # we use Python's memory management
-    cb = _get_changed_paths_DirBaton(
-                    path, base_path, copyfrom_revision, eb)
+        _c_base_path = _c_path
+    cb = <_get_changed_paths_DirBaton *>_c_.apr_palloc(
+                eb._c_p_pool, sizeof(_get_changed_paths_DirBaton))
+    if cb is NULL:
+         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         return _c_err
+    cb[0].path = _c_.apr_pstrdup(eb._c_p_pool, _c_path)
+    if cb[0].path is NULL:
+         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         return _c_err
+    cb[0].base_path = _c_.apr_pstrdup(eb._c_p_pool, _c_base_path)
+    if cb[0].base_path is NULL:
+         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         return _c_err
+    cb[0].base_rev = <_c_.svn_revnum_t>copyfrom_revision
+    cb[0].edit_baton = <void *>eb
     child_baton[0] = <void *>cb
     return NULL
 
 cdef _c_.svn_error_t * _cb_changed_paths_open_directory(
-            const char * path, void * parent_baton,
+            const char * _c_path, void * parent_baton,
             _c_.svn_revnum_t base_revision,
             _c_.apr_pool_t * result_pool, void ** child_baton) with gil:
-    cdef _get_changed_paths_DirBaton pb
+    cdef _get_changed_paths_DirBaton * pb
     cdef _get_changed_paths_EditBaton eb
-    cdef _get_changed_paths_DirBaton cb
-    cdef bytes base_path
-    pb = <_get_changed_paths_DirBaton>parent_baton
-    eb = pb.edit_baton
-    base_path = eb._make_base_path(pb.base_path, path)
-    cb = _get_changed_paths_DirBaton(
-                    path, base_path, pb.base_rev, eb)
+    cdef _get_changed_paths_DirBaton * cb
+    cdef _c_.svn_error_t * _c_err
+
+    pb = <_get_changed_paths_DirBaton *>parent_baton
+    eb = <_get_changed_paths_EditBaton>(pb[0].edit_baton)
+    cb = <_get_changed_paths_DirBaton *>_c_.apr_palloc(
+                eb._c_p_pool, sizeof(_get_changed_paths_DirBaton))
+    if cb is NULL:
+         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         return _c_err
+    cb[0].path = _c_.apr_pstrdup(eb._c_p_pool, _c_path)
+    if cb[0].path is NULL:
+         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         return _c_err
+    cb[0].base_path = _c_make_base_path(
+                                pb[0].base_path, _c_path, eb._c_p_pool)
+    if cb[0].base_path is NULL:
+         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         return _c_err
+    cb[0].base_rev = pb[0].base_rev
+    cb[0].edit_baton = <void *>eb
     child_baton[0] = <void *>cb
     return NULL
 
@@ -951,39 +1055,51 @@ cdef _c_.svn_error_t * _cb_changed_paths_change_dir_prop(
             void * dir_baton, const char * name,
             const _c_.svn_string_t * value,
             _c_.apr_pool_t * scratch_pool) with gil:
-    cdef _get_changed_paths_DirBaton db
+    cdef _get_changed_paths_DirBaton * db
     cdef _get_changed_paths_EditBaton eb
-    db = <_get_changed_paths_DirBaton>dir_baton
-    eb = db.edit_baton
-    if <bytes>(db.path) in eb.changes:
-        (<_ChangedPath>(eb.changes[db.path])).prop_changes = _c_.TRUE
+    cdef bytes db_path
+    db = <_get_changed_paths_DirBaton *>dir_baton
+    eb = <_get_changed_paths_EditBaton>(db[0].edit_baton)
+    db_path = <object>(db[0].path)
+    if db_path in eb.changes:
+        (<_ChangedPath>(eb.changes[db_path])).prop_changes = _c_.TRUE
     else:
         # can't be added or deleted, so this must be CHANGED
-        eb.changes[db.path] = _ChangedPath(
+        eb.changes[db_path] = _ChangedPath(
                                     _c_.svn_node_dir,
                                     _c_.TRUE,
                                     _c_.FALSE,
-                                    db.base_path,
-                                    db.base_rev,
-                                    db.path,
+                                    <object>(db[0].base_path),
+                                    db[0].base_rev,
+                                    db_path,
                                     _c_.FALSE,
                                     _c_.svn_fs_path_change_modify)
     return NULL
 
 cdef _c_.svn_error_t * _cb_changed_paths_add_file(
-            const char * path, void * parent_baton, const char * copyfrom_path,
+            const char * _c_path, void * parent_baton,
+            const char * _c_copyfrom_path,
             _c_.svn_revnum_t copyfrom_revision,
             _c_.apr_pool_t * result_pool, void ** file_baton) with gil:
-    cdef _get_changed_paths_DirBaton pb
+    cdef _get_changed_paths_DirBaton * pb
     cdef _get_changed_paths_EditBaton eb
-    cdef _get_changed_paths_DirBaton fb
+    cdef bytes path
+    cdef object copyfrom_path
+    cdef _get_changed_paths_DirBaton * fb
     cdef _c_.svn_fs_path_change_kind_t action
-    pb = <_get_changed_paths_DirBaton>parent_baton
-    eb = pb.edit_baton
-    if <bytes>path in eb.changes:
+    cdef _c_.svn_error_t * _c_err
+
+    pb = <_get_changed_paths_DirBaton *>parent_baton
+    eb = <_get_changed_paths_EditBaton >(pb[0].edit_baton)
+    path = _c_path
+    if path in eb.changes:
         action = _c_.svn_fs_path_change_replace
     else:
         action = _c_.svn_fs_path_change_add
+    if _c_copyfrom_path is NULL:
+        copyfrom_path = None
+    else:
+        copyfrom_path = _c_copyfrom_path
     eb.changes[path] = _ChangedPath(_c_.svn_node_file,
                                     _c_.FALSE,
                                     _c_.FALSE,
@@ -992,57 +1108,89 @@ cdef _c_.svn_error_t * _cb_changed_paths_add_file(
                                     path,
                                     _c_.TRUE,
                                     action)
-    if copyfrom_path is not NULL:
-        assert copyfrom_revision >= 0
-        base_path = copyfrom_path
+    if copyfrom_path is not None and (copyfrom_revision >= 0):
+        _c_base_path = _c_copyfrom_path
     else:
-        base_path = path
-    # it is endored to allocate child baton from result_pool, but
-    # we use Python's memory management
-    fb = _get_changed_paths_DirBaton(
-                    path, base_path, copyfrom_revision, eb)
+        _c_base_path = _c_path
+    fb = <_get_changed_paths_DirBaton *>_c_.apr_palloc(
+                result_pool, sizeof(_get_changed_paths_DirBaton))
+    if fb is NULL:
+         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         return _c_err
+    fb[0].path = _c_.apr_pstrdup(eb._c_p_pool, _c_path)
+    if fb[0].path is NULL:
+         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         return _c_err
+    fb[0].base_path = _c_.apr_pstrdup(eb._c_p_pool, _c_base_path)
+    if fb[0].base_path is NULL:
+         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         return _c_err
+    fb[0].base_rev = copyfrom_revision
+    fb[0].edit_baton = <void *>eb
     file_baton[0] = <void *>fb
     return NULL
 
 cdef _c_.svn_error_t * _cb_changed_paths_open_file(
-            const char * path, void * parent_baton,
+            const char * _c_path, void * parent_baton,
             _c_.svn_revnum_t base_revision,
             _c_.apr_pool_t * result_pool, void ** file_baton) with gil:
-    cdef _get_changed_paths_DirBaton pb
+    cdef _get_changed_paths_DirBaton * pb
     cdef _get_changed_paths_EditBaton eb
-    cdef _get_changed_paths_DirBaton fb
-    cdef bytes base_path
-    pb = <_get_changed_paths_DirBaton>parent_baton
-    eb = pb.edit_baton
-    base_path = eb._make_base_path(pb.base_path, path)
-    fb = _get_changed_paths_DirBaton(
-                    path, base_path, pb.base_rev, eb)
+    cdef _get_changed_paths_DirBaton * fb
+    cdef _c_.svn_error_t * _c_err
+
+    pb = <_get_changed_paths_DirBaton *>parent_baton
+    eb = <_get_changed_paths_EditBaton >(pb[0].edit_baton)
+    fb = <_get_changed_paths_DirBaton *>_c_.apr_palloc(
+                result_pool, sizeof(_get_changed_paths_DirBaton))
+    if fb is NULL:
+         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         return _c_err
+    fb[0].path = _c_.apr_pstrdup(eb._c_p_pool, _c_path)
+    if fb[0].path is NULL:
+         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         return _c_err
+    fb[0].base_path = _c_make_base_path(
+                                pb[0].base_path, _c_path, eb._c_p_pool)
+    if fb[0].base_path is NULL:
+         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         return _c_err
+    fb[0].base_rev = pb[0].base_rev
+    fb[0].edit_baton = <void *>eb
     file_baton[0] = <void *>fb
     return NULL
 
-cdef  _c_.svn_error_t * _cb_changed_paths_apply_textdelta(
+cdef _c_.svn_error_t * _null_svn_texdelta_window_handler(
+            _c_.svn_txdelta_window_t * window, void * baton) nogil:
+    return NULL
+
+cdef _c_.svn_error_t * _cb_changed_paths_apply_textdelta(
             void * file_baton, const char * base_checksum,
             _c_.apr_pool_t * result_pool,
             _c_.svn_txdelta_window_handler_t * handler,
             void ** handler_baton) with gil:
-    cdef _get_changed_paths_DirBaton pb
+    cdef _get_changed_paths_DirBaton * fb
     cdef _get_changed_paths_EditBaton eb
-    cdef _get_changed_paths_DirBaton fb
-    pb = <_get_changed_paths_DirBaton>file_baton
-    eb = pb.edit_baton
-    if <bytes>(pb.path) in eb.changes:
-        (<_ChangedPath>(eb.changes[pb.path])).text_changed = _c_.TRUE
+    cdef bytes fb_path
+    cdef bytes fb_base_path
+    fb = <_get_changed_paths_DirBaton*>file_baton
+    eb = <_get_changed_paths_EditBaton>(fb[0].edit_baton)
+    fb_path = <bytes>(fb[0].path)
+    fb_base_path = <bytes>(fb[0].base_path)
+    if fb_path in eb.changes:
+        (<_ChangedPath>(eb.changes[fb_path])).text_changed = _c_.TRUE
     else:
-        eb.changes[pb.path] = _ChangedPath(
+        eb.changes[fb_path] = _ChangedPath(
                                     _c_.svn_node_file,
                                     _c_.FALSE,
                                     _c_.TRUE,
-                                    pb.base_path,
-                                    pb.base_rev,
-                                    pb.path,
+                                    fb_base_path,
+                                    fb[0].base_rev,
+                                    fb_path,
                                     _c_.FALSE,
                                     _c_.svn_fs_path_change_modify)
     # we know no handlers to be set
+    handler[0] = _null_svn_texdelta_window_handler
     handler_baton[0] = NULL
     return NULL
 
@@ -1050,21 +1198,25 @@ cdef  _c_.svn_error_t * _cb_changed_paths_change_file_prop(
             void * file_baton, const char * name,
             const _c_.svn_string_t * value,
             _c_.apr_pool_t * scratch_pool) with gil:
-    cdef _get_changed_paths_DirBaton fb
+    cdef _get_changed_paths_DirBaton * fb
     cdef _get_changed_paths_EditBaton eb
-    fb = <_get_changed_paths_DirBaton>file_baton
-    eb = fb.edit_baton
-    if <bytes>(fb.path) in eb.changes:
-        (<_ChangedPath>(eb.changes[fb.path])).prop_changes = _c_.TRUE
+    cdef bytes fb_path
+    cdef bytes fb_base_path
+    fb = <_get_changed_paths_DirBaton *>file_baton
+    eb = <_get_changed_paths_EditBaton >(fb[0].edit_baton)
+    fb_path = <bytes>(fb[0].path)
+    fb_base_path = <bytes>(fb[0].base_path)
+    if fb_path in eb.changes:
+        (<_ChangedPath>(eb.changes[fb_path])).prop_changes = _c_.TRUE
     else:
         # can't be added or deleted, so this must be CHANGED
-        eb.changes[fb.path] = _ChangedPath(
+        eb.changes[fb_path] = _ChangedPath(
                                     _c_.svn_node_file,
                                     _c_.TRUE,
                                     _c_.FALSE,
-                                    fb.base_path,
-                                    fb.base_rev,
-                                    fb.path,
+                                    fb_base_path,
+                                    fb[0].base_rev,
+                                    fb_path,
                                     _c_.FALSE,
                                     _c_.svn_fs_path_change_modify)
     return NULL
@@ -1074,6 +1226,7 @@ def _get_changed_paths_helper(
     cdef _c_.apr_status_t ast
     cdef _c_.svn_error_t * serr
     cdef _c_.apr_pool_t * _c_tmp_pool
+    cdef _c_.apr_pool_t * _c_p_pool
     cdef _c_.svn_delta_editor_t * editor
     cdef _get_changed_paths_EditBaton eb
     cdef _svn.Svn_error pyerr
@@ -1084,9 +1237,20 @@ def _get_changed_paths_helper(
         assert ((<_svn.Apr_Pool?>pool)._c_pool is not NULL)
         ast = _c_.apr_pool_create(
                     &_c_tmp_pool, (<_svn.Apr_Pool>pool)._c_pool)
+        if ast:
+            raise _svn.PoolError()
+        ast = _c_.apr_pool_create(
+                    &_c_p_pool, (<_svn.Apr_Pool>pool)._c_pool)
     else:
         ast = _c_.apr_pool_create(
                     &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+        if ast:
+            raise _svn.PoolError()
+        ast = _c_.apr_pool_create(
+                    &_c_p_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+    if ast:
+        _c_.apr_pool_destroy(_c_tmp_pool)
+        raise _svn.PoolError()
     try:
         editor = _c_.svn_delta_default_editor(_c_tmp_pool)
         editor[0].open_root        = _cb_changed_paths_open_root
@@ -1099,6 +1263,7 @@ def _get_changed_paths_helper(
         editor[0].apply_textdelta  = _cb_changed_paths_apply_textdelta
         editor[0].change_file_prop = _cb_changed_paths_change_file_prop
         eb = _get_changed_paths_EditBaton(fs, fsroot)
+        eb._c_p_pool = _c_p_pool
         IF SVN_API_VER >= (1, 4):
             base_dir = b''
             serr = _c_.svn_repos_replay2(
@@ -1112,6 +1277,7 @@ def _get_changed_paths_helper(
             pyerr = _svn.Svn_error().seterror(serr)
             raise _svn.SVNerr(pyerr)
     finally:
+        _c_.apr_pool_destroy(_c_p_pool)
         _c_.apr_pool_destroy(_c_tmp_pool)
     return eb.changes
 
@@ -1121,7 +1287,7 @@ cdef class NodeHistory(object):
     """A history baton object that builds list of 2-tuple (revision, path)
     locations along a node's change history, orderd from youngest to
     oldest."""
-    cdef list histories
+    cdef public list histories
     cdef _c_.svn_revnum_t _item_cnt # cache of len(self.histories)
     cdef svn_fs_t fs_ptr
     cdef _c_.svn_boolean_t show_all_logs
@@ -1177,7 +1343,7 @@ cdef _c_.svn_error_t * _cb_collect_node_history(
                 return NULL
     btn.histories.append([revision, b'/'.join(filter(None, path.split(b'/')))])
     btn._item_cnt += 1
-    if btn.limit and btn.item_cnt >= btn.limit:
+    if btn.limit and btn._item_cnt >= btn.limit:
         IF SVN_API_VER >= (1, 5):
             serr = _c_.svn_error_create(
                         _c_.SVN_ERR_CEASE_INVOCATION, NULL, NULL)
@@ -1205,6 +1371,8 @@ def _get_history_helper(
     else:
         ast = _c_.apr_pool_create(
                     &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+    if ast:
+        raise _svn.PoolError()
     try:
         serr = _c_.svn_repos_history2(
                     fs_ptr._c_ptr, path, _cb_collect_node_history,
@@ -1412,6 +1580,8 @@ def _get_annotated_source(
     else:
         ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+    if ast:
+        raise _svn.PoolError()
     try:
         serr = _c_.svn_config_ensure(_c_config_dir, _c_tmp_pool)
         if serr is not NULL:

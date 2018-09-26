@@ -5,7 +5,8 @@ from apr_1.apr_pools cimport apr_pool_t
 from subversion_1.svn_types cimport svn_error_t, svn_boolean_t, svn_revnum_t
 from subversion_1.svn_opt cimport svn_opt_revision_t
 from subversion_1.svn_auth cimport svn_auth_baton_t
-from subversion_1.svn_diff cimport svn_diff_file_options_t
+IF SVN_API_VER >= (1, 4):
+    from subversion_1.svn_diff cimport svn_diff_file_options_t
 
 cdef extern from "svn_client.h" nogil:
     # we don't use full feature of structure svn_client_ctx_t,

@@ -1,4 +1,5 @@
 include "_svn_api_ver.pxi"
+from cpython.ref cimport PyObject
 cimport _svn_repos_capi as _c_
 cimport _svn
 
@@ -64,3 +65,27 @@ cdef class svn_repos_t(object):
     cdef svn_repos_t set_repos(
             svn_repos_t self, _c_.svn_repos_t * repos)
 
+cdef class _ChangedPath(object):
+    cdef public _c_.svn_node_kind_t item_kind
+    cdef public _c_.svn_boolean_t prop_changes
+    cdef public _c_.svn_boolean_t text_changed
+    cdef public bytes base_path
+    cdef public _c_.svn_revnum_t base_rev
+    cdef public bytes path
+    cdef public _c_.svn_boolean_t added
+    ### we don't use 'None' action
+    cdef public _c_.svn_fs_path_change_kind_t action
+
+cdef class _get_changed_paths_EditBaton(object):
+    cdef dict changes
+    cdef svn_fs_t fs_ptr
+    cdef svn_fs_root_t root
+    cdef _c_.svn_revnum_t base_rev
+    # pool for path in _get_changed_paths_DirBaton
+    cdef _c_.apr_pool_t * _c_p_pool
+
+ctypedef struct _get_changed_paths_DirBaton:
+    const char * path
+    const char * base_path
+    _c_.svn_revnum_t base_rev
+    void * edit_baton

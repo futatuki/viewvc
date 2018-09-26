@@ -125,11 +125,13 @@ cdef class Svn_error(object):
         cdef object estr
         cdef _c_.svn_error_t * eptr
         if self._c_error is NULL:
-            estr = None
+            estr = ''
         else:
             eptr = self._c_error
             if eptr.message is not NULL:
                 estr = eptr.message
+            else:
+                estr = ''
             eptr = eptr.child
             while eptr is not NULL:
                 if eptr.message is not NULL:
@@ -169,6 +171,19 @@ class SVNerr(General):
 SVN_INVALID_REVNUM = _c_.SVN_INVALID_REVNUM
 SVN_IGNORED_REVNUM = _c_.SVN_IGNORED_REVNUM
 SVN_STREAM_CHUNK_SIZE = _c_.SVN_STREAM_CHUNK_SIZE
+
+# from "svn_types.h" svn_node_kind_t
+svn_node_none    = _c_.svn_node_none
+svn_node_file    = _c_.svn_node_file
+svn_node_dir     = _c_.svn_node_dir
+svn_node_unknown = _c_.svn_node_unknown
+IF SVN_API_VER >= (1, 8):
+    svn_node_symlink = _c_.svn_node_symlink
+IF SVN_API_VER >= (1, 6):
+    def svn_node_kind_to_word(_c_.svn_node_kind_t kind):
+        return <bytes>_c_.svn_node_kind_to_word(kind)
+    def svn_node_kind_from_word(const char * word):
+        return _c_.svn_node_kind_from_word(word)
 
 # from "svn_props.h"
 IF PY_VERSION < (3, 0, 0):
@@ -400,7 +415,7 @@ def canonicalize_rootpath(path):
                         rootpath = os.path.normpath(
                                         urllib.unquote(rootpath[16:]))
                     else:
-                        assert rootpath.lower.startswith(b'file:///')
+                        assert rootpath_lower.startswith(b'file:///')
                         rootpath = os.path.normpath(
                                         urllib.unquote(rootpath[7:]))
                 assert os.path.isabs(rootpath)
