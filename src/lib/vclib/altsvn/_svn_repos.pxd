@@ -7,20 +7,22 @@ cdef class svn_fs_t(object):
     cdef _c_.svn_fs_t * _c_ptr
     cdef dict roots
     cdef _svn.Apr_Pool pool
-    cdef set_fs(self, _c_.svn_fs_t * fs)
+    cdef set_fs(self, _c_.svn_fs_t * fs, object pool)
 
 cdef class svn_fs_root_t(object):
     cdef _c_.svn_fs_root_t * _c_ptr
-    cdef object pool
-    cdef set_fs_root(self, _c_.svn_fs_root_t * fs_root)
+    cdef _svn.Apr_Pool pool
+    cdef set_fs_root(self, _c_.svn_fs_root_t * fs_root, object pool)
 
 cdef class svn_fs_id_t(object):
     cdef _c_.svn_fs_id_t * _c_ptr
-    cdef set_fs_id(self, _c_.svn_fs_id_t * fs_id)
+    cdef _svn.Apr_Pool pool
+    cdef set_fs_id(self, _c_.svn_fs_id_t * fs_id, object pool)
 
 cdef class svn_fs_history_t(object):
     cdef _c_.svn_fs_history_t * _c_ptr
-    cdef set_history(self, _c_.svn_fs_history_t * history)
+    cdef _svn.Apr_Pool pool
+    cdef set_history(self, _c_.svn_fs_history_t * history, object pool)
 
 ctypedef _c_.svn_error_t * (* svn_rv1_root_path_func_t)(
                 void ** _c_r_ptr, _c_.svn_fs_root_t *_c_root,
@@ -32,7 +34,8 @@ IF SVN_API_VER < (1, 10):
             cdef _c_.svn_fs_path_change2_t * _c_change
         ELSE:
             cdef _c_.svn_fs_path_change_t * _c_change
-        cdef _c_.apr_pool_t * _c_tmp_pool
+            cdef _svn.Apr_Pool result_pool
+        cdef _svn.Apr_Pool tmp_pool
         cdef object to_object(self)
         IF SVN_API_VER >= (1, 6):
             cdef void set_c_change(
@@ -48,12 +51,6 @@ cdef class NodeKindTrans(_svn.TransPtr):
     cdef void set_c_kind(self, _c_.svn_node_kind_t _c_kind)
     cdef void ** ptr_ref(self)
     
-cdef class DirEntryTrans(_svn.TransPtr):
-    cdef _c_.svn_fs_dirent_t *_c_dirent
-    cdef object to_object(self)
-    cdef void set_c_dirent(self, _c_.svn_fs_dirent_t * _c_dirent)
-    cdef void ** ptr_ref(self)
-
 cdef class FileSizeTrans(_svn.TransPtr):
     cdef _c_.svn_filesize_t _c_fsize
     cdef object to_object(self)
@@ -62,8 +59,9 @@ cdef class FileSizeTrans(_svn.TransPtr):
 
 cdef class svn_repos_t(object):
     cdef _c_.svn_repos_t * _c_ptr
+    cdef _svn.Apr_Pool pool
     cdef svn_repos_t set_repos(
-            svn_repos_t self, _c_.svn_repos_t * repos)
+            svn_repos_t self, _c_.svn_repos_t * repos, object pool)
 
 cdef class _ChangedPath(object):
     cdef public _c_.svn_node_kind_t item_kind

@@ -54,7 +54,7 @@ cdef class Apr_Pool(object):
 #    cdef _c_.apr_pool_t* _c_pool
     def __cinit__(self, Apr_Pool pool=None):
         self._c_pool = NULL
-        self.is_own = False
+        self.is_own = _c_.FALSE
         self._parent_pool = None
     def __init__(self, Apr_Pool pool=None):
         cdef _c_.apr_status_t ast
@@ -64,26 +64,30 @@ cdef class Apr_Pool(object):
             ast = _c_.apr_pool_create(&(self._c_pool),pool._c_pool)
         if ast:
             raise PoolError()
+        self.is_own = _c_.TRUE
         self._parent_pool = pool
-        self.is_own = True
     def clear(self):
         if self._c_pool is not NULL:
             _c_.apr_pool_clear(self._c_pool)
     def destroy(self):
         # do not try to destroy the pool. this will cause segmentation fault.
-        if self.is_own and self._c_pool is not NULL:
+        if self.is_own != _c_.FALSE and self._c_pool is not NULL:
+            self.is_own = _c_.FALSE
             _c_.apr_pool_destroy(self._c_pool)
         self._c_pool = NULL
-        self.is_own = False
     cdef Apr_Pool set_pool(Apr_Pool self, _c_.apr_pool_t * _c_pool):
+        assert self._c_pool is NULL
+        self.is_own = _c_.FALSE
         self._c_pool = _c_pool
         return self
     cdef inline void * palloc(self, _c_.apr_size_t size):
         return _c_.apr_palloc(self._c_pool, size)
     def __dealloc__(self):
-        if self.is_own and self._c_pool is not NULL:
+        if self.is_own != _c_.FALSE and self._c_pool is not NULL:
+            self.is_own = _c_.FALSE
             _c_.apr_pool_destroy(self._c_pool)
             self._c_pool = NULL
+        self._parent_pool = None
 
 cpdef Apr_Pool _root_pool
 _root_pool = Apr_Pool()
@@ -128,19 +132,26 @@ cdef class Svn_error(object):
     def __str__(self):
         cdef object estr
         cdef _c_.svn_error_t * eptr
-        if self._c_error is NULL:
-            estr = ''
-        else:
-            eptr = self._c_error
-            if eptr.message is not NULL:
-                estr = eptr.message
+        cdef char * msgbuf
+        IF SVN_API_VER >= (1, 4):
+            msgbuf = <char *>PyMem_Malloc(512)
+            estr = <bytes>_c_.svn_err_best_message(
+                                self._c_error, msgbuf, <_c_.apr_size_t>512)
+            PyMem_Free(<void*>msgbuf)
+        ELSE:
+            if self._c_error is NULL:
+                estr = ''
             else:
-                estr = b''
-            eptr = eptr.child
-            while eptr is not NULL:
+                eptr = self._c_error
                 if eptr.message is not NULL:
-                    estr = estr + b'\n' + eptr.message
+                    estr = eptr.message
+                else:
+                    estr = b''
                 eptr = eptr.child
+                while eptr is not NULL:
+                    if eptr.message is not NULL:
+                        estr = estr + b'\n' + eptr.message
+                    eptr = eptr.child
             IF PY_VERSION >= (3, 0, 0):
                 estr = eptr.decode('utf-8')
         return estr
@@ -519,8 +530,12 @@ cdef class svn_stream_t(object):
     # cdef _c_.svn_stream_t * _c_ptr
     def __cinit__(self):
         self._c_ptr = NULL
-    cdef set_stream(self, _c_.svn_stream_t * stream):
+    cdef svn_stream_t set_stream(
+             svn_stream_t self, _c_.svn_stream_t * stream, object pool):
         self._c_ptr = stream
+        assert pool is None or isinstance(pool, Apr_Pool)
+        self.pool = pool
+        return self
     def close(self):
         cdef _c_.svn_error_t * serr
         cdef Svn_error pyerr
@@ -529,10 +544,12 @@ cdef class svn_stream_t(object):
             if serr is not NULL:
                 pyerr = Svn_error().seterror(serr)
                 raise SVNerr(pyerr)
+            self.pool = None
+            self._c_ptr = NULL
 
 cdef char _streambuf[_c_.SVN_STREAM_CHUNK_SIZE]
 
-def svn_stream_read(svn_stream_t stream, len):
+def svn_stream_read_full(svn_stream_t stream, len):
     cdef _c_.apr_size_t _c_len
     cdef char * _c_buf
     cdef _c_.svn_error_t * serr
@@ -546,7 +563,7 @@ def svn_stream_read(svn_stream_t stream, len):
         _c_buf = _streambuf
     _c_len = len
     IF SVN_API_VER >= (1, 9):
-        serr = _c_.svn_stream_read2(stream._c_ptr, _c_buf, &_c_len)
+        serr = _c_.svn_stream_read_full(stream._c_ptr, _c_buf, &_c_len)
     ELSE:
         serr = _c_.svn_stream_read(stream._c_ptr, _c_buf, &_c_len)
     if serr is not NULL:
@@ -567,7 +584,7 @@ def svn_stream_close(svn_stream_t stream):
 
 def svn_stream_readline(svn_stream_t stream, const char *eol, pool=None):
     cdef _c_.apr_status_t ast
-    cdef _c_.apr_pool_t * _c_scratch_pool
+    cdef _c_.apr_pool_t * _c_tmp_pool
     cdef _c_.svn_error_t * serr
     cdef Svn_error pyerr
     cdef _c_.svn_stringbuf_t * _c_stringbuf
@@ -575,26 +592,26 @@ def svn_stream_readline(svn_stream_t stream, const char *eol, pool=None):
     cdef object bufstr
     cdef object eof
 
-    assert stream._c_ptr is not NULL
+    assert isinstance(stream, svn_stream_t) and stream._c_ptr is not NULL
     if pool is not None:
         assert (    isinstance(pool, Apr_Pool)
                 and (<Apr_Pool>pool)._c_pool is not NULL)
-        ast = _c_.apr_pool_create(&_c_scratch_pool,
+        ast = _c_.apr_pool_create(&_c_tmp_pool,
                                        (<Apr_Pool>pool)._c_pool)
     else:
-        ast = _c_.apr_pool_create(&_c_scratch_pool, _root_pool._c_pool)
+        ast = _c_.apr_pool_create(&_c_tmp_pool, _root_pool._c_pool)
     if ast:
         raise MemoryError()
     try:
         serr = _c_.svn_stream_readline(stream._c_ptr, &_c_stringbuf,
-                                            eol, &_c_eof, _c_scratch_pool)
+                                            eol, &_c_eof, _c_tmp_pool)
         if serr is not NULL:
             pyerr = Svn_error().seterror(serr)
             raise SVNerr(pyerr)
         bufstr = _c_stringbuf.data[0:_c_stringbuf.len]
         eof = True if _c_eof else False
     finally:
-        _c_.apr_pool_destroy(_c_scratch_pool)
+        _c_.apr_pool_destroy(_c_tmp_pool)
     return bufstr, eof
 
 # baton wrapper ... call back function helper
@@ -771,7 +788,7 @@ IF SVN_API_VER >= (1, 4):
             const char * path, result_pool=None, scratch_pool=None):
         cdef _c_.apr_status_t ast
         cdef _c_.apr_pool_t * _c_tmp_pool
-        cdef _c_.apr_pool_t * _c_result_pool
+        cdef Apr_Pool r_pool
         cdef _c_.svn_stream_t * _c_stream
         cdef _c_.svn_error_t * serr
         cdef Svn_error pyerr
@@ -781,9 +798,9 @@ IF SVN_API_VER >= (1, 4):
         if result_pool is not None:
             assert (    isinstance(result_pool, Apr_Pool)
                     and (<Apr_Pool>result_pool)._c_pool is not NULL)
-            _c_result_pool = (<Apr_Pool>result_pool)._c_pool
+            r_pool = result_pool
         else:
-            _c_result_pool = _root_pool._c_pool
+            r_pool = _root_pool
         if scratch_pool is not None:
             assert (    isinstance(scratch_pool, Apr_Pool)
                     and (<Apr_Pool>scratch_pool)._c_pool is not NULL)
@@ -796,7 +813,7 @@ IF SVN_API_VER >= (1, 4):
         try:
             IF SVN_API_VER >= (1, 6):
                 serr = _c_.svn_stream_open_readonly(
-                                &_c_stream, path, _c_result_pool, _c_tmp_pool)
+                                &_c_stream, path, r_pool._c_pool, _c_tmp_pool)
                 if serr is not NULL:
                     pyerr = Svn_error().seterror(serr)
                     raise SVNerr(pyerr)
@@ -804,14 +821,14 @@ IF SVN_API_VER >= (1, 4):
                 serr = _c_.svn_io_file_open(
                             &_c_file, path,
                             _c_.APR_READ | _c_.APR_BUFFERED,
-                            _c_.APR_OS_DEFAULT, _c_result_pool)
+                            _c_.APR_OS_DEFAULT, r_pool._c_pool)
                 if serr is not NULL:
                     pyerr = Svn_error().seterror(serr)
                     raise SVNerr(pyerr)
                 _c_stream = _c_.svn_stream_from_aprfile2(
-                                    _c_file, _c_.FALSE, _c_result_pool)
+                                    _c_file, _c_.FALSE, r_pool._c_pool)
             stream = svn_stream_t()
-            stream.set_stream(_c_stream)
+            stream.set_stream(_c_stream, r_pool)
         finally:
             _c_.apr_pool_destroy(_c_tmp_pool)
         return stream

@@ -13,7 +13,7 @@ from subversion_1 cimport svn_io
 
 cdef class Apr_Pool(object):
     cdef apr_pools.apr_pool_t* _c_pool
-    cdef object is_own
+    cdef svn_types.svn_boolean_t is_own
     cdef readonly Apr_Pool _parent_pool
     cdef Apr_Pool set_pool(Apr_Pool self, apr_pools.apr_pool_t * _c_pool)
     cdef inline void * palloc(self, apr.apr_size_t size)
@@ -32,7 +32,9 @@ cdef class svn_opt_revision_t(object):
 
 cdef class svn_stream_t(object):
     cdef svn_io.svn_stream_t * _c_ptr
-    cdef set_stream(self, svn_io.svn_stream_t * stream)
+    cdef Apr_Pool pool
+    cdef svn_stream_t set_stream(
+            svn_stream_t self, svn_io.svn_stream_t * stream, object pool)
 
 cdef class CbContainer(object):
     cdef object fnobj

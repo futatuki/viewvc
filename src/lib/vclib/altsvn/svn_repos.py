@@ -143,7 +143,7 @@ def temp_checkout(svnrepos, path, rev):
     stream = _svn_repos.svn_fs_file_contents(root, path)
     try:
       while 1:
-        chunk = _svn.svn_stream_read(stream, _svn.SVN_STREAM_CHUNK_SIZE)
+        chunk = _svn.svn_stream_read_full(stream, _svn.SVN_STREAM_CHUNK_SIZE)
         if not chunk:
           break
         fp.write(chunk)
@@ -165,7 +165,7 @@ class FileContentsPipe:
         buffer = io.BytesIO()
         try:
           while 1:
-            hunk = _svn.svn_stream_read(self._stream, 8192)
+            hunk = _svn.svn_stream_read_full(self._stream, 8192)
             if not hunk:
               break
             buffer.write(hunk)
@@ -174,7 +174,7 @@ class FileContentsPipe:
           buffer.close()
 
       else:
-        chunk = _svn.svn_stream_read(self._stream, len)
+        chunk = _svn.svn_stream_read_full(self._stream, len)
     if not chunk:
       self._eof = 1
     return chunk
@@ -284,15 +284,14 @@ class LocalSubversionRepository(vclib.Repository):
       raise vclib.Error("Path '%s' is not a directory." % _norm(path))
     rev = self._getrev(rev)
     fsroot = self._getroot(rev)
-    dirents = _svn_repos.svn_fs_dir_entries(fsroot, path)
+    dirents = _svn_repos._listdir_helper(fsroot, path, 
+                                         {_svn.svn_node_file: vclib.FILE,
+                                          _svn.svn_node_dir : vclib.DIR  })
     entries = [ ]
     for entry in dirents.values():
-      if entry.kind == _svn.svn_node_dir:
-        kind = vclib.DIR
-      elif entry.kind == _svn.svn_node_file:
-        kind = vclib.FILE
-      if vclib.check_path_access(self, path_parts + [entry.name], kind, rev):
-        entries.append(vclib.DirEntry(entry.name, kind))
+      if vclib.check_path_access(
+                  self, path_parts + [entry.name], entry.kind, rev):
+        entries.append(vclib.DirEntry(entry.name, entry.kind))
     return entries
 
   def dirlogs(self, path_parts, rev, entries, options):
