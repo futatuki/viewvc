@@ -59,13 +59,14 @@ cdef class Apr_Pool(object):
     def __init__(self, Apr_Pool pool=None):
         cdef _c_.apr_status_t ast
         if pool is None:
+            self._parent_pool = _root_pool
             ast = _c_.apr_pool_create(&(self._c_pool),NULL)
         else:
+            self._parent_pool = pool
             ast = _c_.apr_pool_create(&(self._c_pool),pool._c_pool)
         if ast:
             raise PoolError()
         self.is_own = _c_.TRUE
-        self._parent_pool = pool
     def clear(self):
         if self._c_pool is not NULL:
             _c_.apr_pool_clear(self._c_pool)
@@ -351,9 +352,9 @@ cdef class svn_opt_revision_t(object):
                              + str(self._c_opt_revision.kind)
                              + '" has set')
 
-def canonicalize_path(path):
+def canonicalize_path(path, scratch_pool=None):
     cdef _c_.apr_status_t ast
-    cdef _c_.apr_pool_t * _c_scratch_pool
+    cdef _c_.apr_pool_t * _c_tmp_pool
     cdef const char * _c_rpath
     cdef object rpath
     cdef _c_.svn_error_t * serr
@@ -365,30 +366,35 @@ def canonicalize_path(path):
     if not isinstance(path, bytes) and isinstance(path, str):
         path = path.encode('utf-8')
     assert isinstance(path, bytes)
-    ast = _c_.apr_pool_create(&_c_scratch_pool, _root_pool._c_pool)
+    if scratch_pool is not None:
+        assert (<Apr_Pool?>scratch_pool)._c_pool is not NULL
+        ast = _c_.apr_pool_create(&_c_tmp_pool,
+                                  (<Apr_Pool>scratch_pool)._c_pool)
+    else:
+        ast = _c_.apr_pool_create(&_c_tmp_pool, _root_pool._c_pool)
     if ast:
         raise MemoryError()
     try:
         IF SVN_API_VER >= (1, 7):
             if _c_.svn_path_is_url(path):
                 _c_rpath = _c_.svn_uri_canonicalize(
-                                                path, _c_scratch_pool)
+                                                path, _c_tmp_pool)
                 rpath = _c_rpath
             else:
                 _c_rpath = _c_.svn_dirent_canonicalize(
-                                                path, _c_scratch_pool)
+                                                path, _c_tmp_pool)
                 rpath = _c_rpath
                 assert os.path.isabs(rpath)
         ELSE:
-            _c_rpath = _c_.svn_path_canonicalize(path, _c_scratch_pool)
+            _c_rpath = _c_.svn_path_canonicalize(path, _c_tmp_pool)
             rpath = _c_rpath
     finally:
-        _c_.apr_pool_destroy(_c_scratch_pool)
+        _c_.apr_pool_destroy(_c_tmp_pool)
     return rpath
 
-def canonicalize_rootpath(path):
+def canonicalize_rootpath(path, scratch_pool=None):
     cdef _c_.apr_status_t ast
-    cdef _c_.apr_pool_t * _c_scratch_pool
+    cdef _c_.apr_pool_t * _c_tmp_pool
     cdef const char * _c_rootpath
     cdef object rootpath
     cdef _c_.svn_error_t * serr
@@ -400,22 +406,28 @@ def canonicalize_rootpath(path):
     if not isinstance(path, bytes) and isinstance(path, str):
         path = path.encode('utf-8')
     assert isinstance(path, bytes)
-    ast = _c_.apr_pool_create(&_c_scratch_pool, _root_pool._c_pool)
+    if scratch_pool is not None:
+        assert (<Apr_Pool?>scratch_pool)._c_pool is not NULL
+        ast = _c_.apr_pool_create(&_c_tmp_pool,
+                                  (<Apr_Pool>scratch_pool)._c_pool)
+    else:
+        ast = _c_.apr_pool_create(&_c_tmp_pool, _root_pool._c_pool)
     if ast:
         raise MemoryError()
     try:
         if _c_.svn_path_is_url(path):
             IF SVN_API_VER >= (1, 7):
                 _c_rootpath = _c_.svn_uri_canonicalize(
-                                                path, _c_scratch_pool)
+                                                path, _c_tmp_pool)
             ELSE:
                 _c_rootpath = _c_.svn_path_canonicalize(
-                                                path, _c_scratch_pool)
+                                                path, _c_tmp_pool)
             rootpath = _c_rootpath
             if rootpath.lower().startswith(b'file:'):
                 IF SVN_API_VER >= (1, 7):
                     serr = _c_.svn_uri_get_dirent_from_file_url(
-                                &_c_rootpath, _c_rootpath, _c_scratch_pool)
+                                &_c_rootpath, <const char *>rootpath,
+                                _c_tmp_pool)
                     if serr is not NULL:
                         pyerr = Svn_error().seterror(serr)
                         raise SVNerr(pyerr)
@@ -439,18 +451,18 @@ def canonicalize_rootpath(path):
         else:
             IF SVN_API_VER >= (1, 6):
                 _c_rootpath = _c_.svn_dirent_canonicalize(
-                                                path, _c_scratch_pool)
+                                                path, _c_tmp_pool)
             ELSE:
                 _c_rootpath = _c_.svn_path_canonicalize(
-                                                path, _c_scratch_pool)
+                                                path, _c_tmp_pool)
             rootpath = _c_rootpath
             assert os.path.isabs(rootpath)
     finally:
-        _c_.apr_pool_destroy(_c_scratch_pool)
+        _c_.apr_pool_destroy(_c_tmp_pool)
     return rootpath
 
 # called from svn_repos module
-def rootpath2url(rootpath, path):
+def rootpath2url(rootpath, path, scratch_pool=None):
     cdef bytes fullpath
     cdef const char * _c_dirent
     cdef bytes dirent
@@ -463,7 +475,12 @@ def rootpath2url(rootpath, path):
 
     rootpath = os.path.abspath(rootpath)
     fullpath = canonicalize_path(os.path.join(rootpath, path))
-    ast = _c_.apr_pool_create(&_c_tmp_pool, _root_pool._c_pool)
+    if scratch_pool is not None:
+        assert (<Apr_Pool?>scratch_pool)._c_pool is not NULL
+        ast = _c_.apr_pool_create(&_c_tmp_pool,
+                                  (<Apr_Pool>scratch_pool)._c_pool)
+    else:
+        ast = _c_.apr_pool_create(&_c_tmp_pool, _root_pool._c_pool)
     if ast:
         raise MemoryError()
     try:
@@ -502,19 +519,24 @@ def rootpath2url(rootpath, path):
     return url
 
 # called from svn_repos module
-def datestr_to_date(datestr):
+def datestr_to_date(datestr, scratch_pool=None):
     cdef _c_.apr_status_t ast
-    cdef _c_.apr_pool_t * _c_scratch_pool
+    cdef _c_.apr_pool_t * _c_tmp_pool
     cdef _c_.svn_error_t * serr
     cdef Svn_error pyerr
     cdef _c_.apr_time_t _c_when
 
-    ast = _c_.apr_pool_create(&_c_scratch_pool, _root_pool._c_pool)
+    if scratch_pool is not None:
+        assert (<Apr_Pool?>scratch_pool)._c_pool is not NULL
+        ast = _c_.apr_pool_create(&_c_tmp_pool,
+                                  (<Apr_Pool>scratch_pool)._c_pool)
+    else:
+        ast = _c_.apr_pool_create(&_c_tmp_pool, _root_pool._c_pool)
     if ast:
         raise MemoryError()
     try:
         serr = _c_.svn_time_from_cstring(
-                        &_c_when, datestr, _c_scratch_pool)
+                        &_c_when, datestr, _c_tmp_pool)
         if serr is not NULL:
             _c_.svn_error_clear(serr)
             when = None
@@ -522,7 +544,7 @@ def datestr_to_date(datestr):
             when = _c_when
             when = when / 1000000
     finally:
-        _c_.apr_pool_destroy(_c_scratch_pool)
+        _c_.apr_pool_destroy(_c_tmp_pool)
     return when
 
 # from "svn_io.h"
@@ -637,38 +659,27 @@ cdef class HashTrans(TransPtr):
     def __cinit__(
             self, TransPtr key_trans, TransPtr val_trans,
             scratch_pool=None, **m):
-        self._c_tmp_pool = NULL
+        self.tmp_pool = None
         self._c_hash = NULL
     def __init__(
             self, TransPtr key_trans, TransPtr val_trans,
             scratch_pool=None, **m):
-        cdef _c_.apr_status_t ast
         self.key_trans = key_trans
         self.val_trans = val_trans
         if scratch_pool is not None:
-            assert (     isinstance(scratch_pool, Apr_Pool)
-                     and  (<Apr_Pool>scratch_pool)._c_pool is not NULL)
-            ast = _c_.apr_pool_create(
-                            &(self._c_tmp_pool),
-                            (<Apr_Pool>scratch_pool)._c_pool)
+            assert (<Apr_Pool?>scratch_pool)._c_pool is not NULL
+            self.tmp_pool = Apr_Pool(scratch_pool)
         else:
-            ast = _c_.apr_pool_create(
-                            &(self._c_tmp_pool), _root_pool._c_pool)
-        if ast:
-            raise PoolError()
-    def __dealloc__(self):
-        if self._c_tmp_pool is not NULL:
-            _c_.apr_pool_destroy(self._c_tmp_pool)
-            self._c_tmp_pool = NULL
+            self.tmp_pool = Apr_Pool(_root_pool)
     cdef object to_object(self):
         cdef _c_.apr_hash_index_t * hi
         cdef const void * _c_key
         cdef _c_.apr_ssize_t _c_klen
         cdef void * _c_val
 
-        _c_.apr_pool_clear(self._c_tmp_pool)
+        self.tmp_pool.clear()
         hi = _c_.apr_hash_first(
-                    self._c_tmp_pool, self._c_hash)
+                    self.tmp_pool._c_pool, self._c_hash)
         rdict = {}
         while hi is not NULL:
             _c_.apr_hash_this(hi,

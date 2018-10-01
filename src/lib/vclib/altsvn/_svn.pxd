@@ -51,7 +51,7 @@ cdef class HashTrans(TransPtr):
     cdef apr_hash.apr_hash_t * _c_hash
     cdef TransPtr key_trans
     cdef TransPtr val_trans
-    cdef apr_hash.apr_pool_t * _c_tmp_pool
+    cdef Apr_Pool tmp_pool
     cdef object to_object(self)
     cdef void * from_object(self, object obj)
     cdef void set_ptr(self, void *_c_ptr)
