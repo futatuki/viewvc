@@ -14,14 +14,9 @@
 
 import vclib
 import sys
-import os
 import os.path
 import io
-import time
 import tempfile
-import popen
-import re
-import urllib
 from . import _svn
 from . import _svn_repos
 

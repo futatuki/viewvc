@@ -12,10 +12,8 @@
 
 "Version Control lib driver for Subversion repositories"
 
-import os
 import os.path
 import re
-import urllib
 from ._svn import canonicalize_path as _canonicalize_path
 from ._svn import canonicalize_rootpath as canonicalize_rootpath
 
