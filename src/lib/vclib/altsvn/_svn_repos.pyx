@@ -1,6 +1,4 @@
 include "_svn_api_ver.pxi"
-include "_py_ver.pxi"
-from cpython.ref cimport PyObject
 from libc.string cimport memcpy
 from libc.stdint cimport int64_t
 cimport _svn_repos_capi as _c_
@@ -888,6 +886,7 @@ cdef _c_.svn_error_t * _cb_svn_repos_authz_func_wrapper(
 cdef _c_.apr_array_header_t * _make_revnum_array(
         object revisions, _c_.apr_pool_t * pool) except? NULL:
     cdef _c_.apr_array_header_t * _c_arrayptr
+    cdef _svn.Svn_error pyerr
     cdef object rev
     cdef const char *strptr
     cdef int nelts
@@ -895,8 +894,9 @@ cdef _c_.apr_array_header_t * _make_revnum_array(
     nelts = len(revisions)
     _c_arrayptr = _c_.apr_array_make(pool, nelts, sizeof(_c_.svn_revnum_t))
     if _c_arrayptr is NULL:
-        _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
-        raise _svn.PoolError("fail to allocate array for revisions")
+        _c_err = _c_.svn_error_create(_c_.APR_ENOMEM, NULL, NULL)
+        pyerr = _svn.Svn_error().seterror(_c_err)
+        raise _svn.SVNerr(pyerr)
     for rev in revisions:
         (<_c_.svn_revnum_t *>(_c_.apr_array_push(_c_arrayptr)))[0] = rev
     return _c_arrayptr
@@ -1060,11 +1060,11 @@ cdef _c_.svn_error_t * _cb_changed_paths_open_root(
     rb = <_get_changed_paths_DirBaton *>_c_.apr_palloc(
                 eb._c_p_pool, sizeof(_get_changed_paths_DirBaton))
     if rb is NULL:
-         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         _c_err = _c_.svn_error_create(_c_.APR_ENOMEM, NULL, NULL)
          return _c_err
     rb[0].path = <const char *>_c_.apr_palloc(eb._c_p_pool, 1)
     if rb[0].path is NULL:
-         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         _c_err = _c_.svn_error_create(_c_.APR_ENOMEM, NULL, NULL)
          return _c_err
     (<char *>(rb[0].path))[0] = <char>0
     rb[0].base_path = rb[0].path
@@ -1089,7 +1089,7 @@ cdef _c_.svn_error_t * _cb_changed_paths_delete_entry(
     path = _c_path
     _c_base_path = _c_make_base_path(pb[0].base_path, path, scratch_pool)
     if _c_base_path is NULL:
-         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         _c_err = _c_.svn_error_create(_c_.APR_ENOMEM, NULL, NULL)
          return _c_err
     base_path = <bytes>_c_base_path
     if svn_fs_is_dir(eb._getroot(pb.base_rev), base_path):
@@ -1144,15 +1144,15 @@ cdef _c_.svn_error_t * _cb_changed_paths_add_directory(
     cb = <_get_changed_paths_DirBaton *>_c_.apr_palloc(
                 eb._c_p_pool, sizeof(_get_changed_paths_DirBaton))
     if cb is NULL:
-         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         _c_err = _c_.svn_error_create(_c_.APR_ENOMEM, NULL, NULL)
          return _c_err
     cb[0].path = _c_.apr_pstrdup(eb._c_p_pool, _c_path)
     if cb[0].path is NULL:
-         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         _c_err = _c_.svn_error_create(_c_.APR_ENOMEM, NULL, NULL)
          return _c_err
     cb[0].base_path = _c_.apr_pstrdup(eb._c_p_pool, _c_base_path)
     if cb[0].base_path is NULL:
-         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         _c_err = _c_.svn_error_create(_c_.APR_ENOMEM, NULL, NULL)
          return _c_err
     cb[0].base_rev = <_c_.svn_revnum_t>copyfrom_revision
     cb[0].edit_baton = <void *>eb
@@ -1173,16 +1173,16 @@ cdef _c_.svn_error_t * _cb_changed_paths_open_directory(
     cb = <_get_changed_paths_DirBaton *>_c_.apr_palloc(
                 eb._c_p_pool, sizeof(_get_changed_paths_DirBaton))
     if cb is NULL:
-         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         _c_err = _c_.svn_error_create(_c_.APR_ENOMEM, NULL, NULL)
          return _c_err
     cb[0].path = _c_.apr_pstrdup(eb._c_p_pool, _c_path)
     if cb[0].path is NULL:
-         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         _c_err = _c_.svn_error_create(_c_.APR_ENOMEM, NULL, NULL)
          return _c_err
     cb[0].base_path = _c_make_base_path(
                                 pb[0].base_path, _c_path, eb._c_p_pool)
     if cb[0].base_path is NULL:
-         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         _c_err = _c_.svn_error_create(_c_.APR_ENOMEM, NULL, NULL)
          return _c_err
     cb[0].base_rev = pb[0].base_rev
     cb[0].edit_baton = <void *>eb
@@ -1253,15 +1253,15 @@ cdef _c_.svn_error_t * _cb_changed_paths_add_file(
     fb = <_get_changed_paths_DirBaton *>_c_.apr_palloc(
                 result_pool, sizeof(_get_changed_paths_DirBaton))
     if fb is NULL:
-         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         _c_err = _c_.svn_error_create(_c_.APR_ENOMEM, NULL, NULL)
          return _c_err
     fb[0].path = _c_.apr_pstrdup(eb._c_p_pool, _c_path)
     if fb[0].path is NULL:
-         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         _c_err = _c_.svn_error_create(_c_.APR_ENOMEM, NULL, NULL)
          return _c_err
     fb[0].base_path = _c_.apr_pstrdup(eb._c_p_pool, _c_base_path)
     if fb[0].base_path is NULL:
-         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         _c_err = _c_.svn_error_create(_c_.APR_ENOMEM, NULL, NULL)
          return _c_err
     fb[0].base_rev = copyfrom_revision
     fb[0].edit_baton = <void *>eb
@@ -1282,16 +1282,16 @@ cdef _c_.svn_error_t * _cb_changed_paths_open_file(
     fb = <_get_changed_paths_DirBaton *>_c_.apr_palloc(
                 result_pool, sizeof(_get_changed_paths_DirBaton))
     if fb is NULL:
-         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         _c_err = _c_.svn_error_create(_c_.APR_ENOMEM, NULL, NULL)
          return _c_err
     fb[0].path = _c_.apr_pstrdup(eb._c_p_pool, _c_path)
     if fb[0].path is NULL:
-         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         _c_err = _c_.svn_error_create(_c_.APR_ENOMEM, NULL, NULL)
          return _c_err
     fb[0].base_path = _c_make_base_path(
                                 pb[0].base_path, _c_path, eb._c_p_pool)
     if fb[0].base_path is NULL:
-         _c_err = _c_.svn_error_create(_c_.APR_ENOPOOL, NULL, NULL)
+         _c_err = _c_.svn_error_create(_c_.APR_ENOMEM, NULL, NULL)
          return _c_err
     fb[0].base_rev = pb[0].base_rev
     fb[0].edit_baton = <void *>eb
