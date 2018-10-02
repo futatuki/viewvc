@@ -13,33 +13,20 @@
 "Version Control lib driver for locally accessible Subversion repositories"
 
 import vclib
-import sys
 import os.path
 import io
 import tempfile
 from . import _svn
 from . import _svn_repos
+from . import _norm
 
 ### Require Subversion 1.3.1 or better.
 if (_svn.SVN_VER_MAJOR, _svn.SVN_VER_MINOR, _svn.SVN_VER_PATCH) < (1, 3, 1):
   raise Exception, "Version requirement not met (needs 1.3.1 or better)"
 
-# for compatibility between Python 2 and Python 3
-_default_encoding = sys.getdefaultencoding()
-
-def setdefaultencoding(enc):
-    codecs.lookup(enc)
-    _default_encoding = enc
-    return
-
-def _norm(s, encoding=_default_encoding, errors='surrogateescape'):
-    return (s.decode(encoding, errors)
-                if not isinstance(s, str) and isinstance(s, bytes) else s)
-
 def _allow_all(root, path, baton, pool):
   """Generic authz_read_func that permits access to all paths"""
   return 1
-
 
 def _path_parts(path):
   return filter(None, path.split(b'/'))
@@ -433,7 +420,7 @@ class LocalSubversionRepository(vclib.Repository):
       info1 = p1, _date_from_rev(r1), r1
       info2 = p2, _date_from_rev(r2), r2
       return vclib._diff_fp(temp1, temp2, info1, info2, self.diff_cmd, args)
-    except _svn.SVNerr, e:
+    except _svn.SVNerr as e:
       if e.get_code() == _svn.SVN_ERR_FS_NOT_FOUND:
         raise vclib.InvalidRevision
       raise
@@ -658,7 +645,7 @@ class LocalSubversionRepository(vclib.Repository):
                       self.fs_ptr, path, rev,
                       options.get('svn_cross_copies', 0),
                       show_all_logs, limit)
-    except _svn.SVNerr, e:
+    except _svn.SVNerr as e:
       if e.get_code() != _svn.SVN_ERR_CEASE_INVOCATION:
         raise
 
@@ -713,7 +700,7 @@ class LocalSubversionRepository(vclib.Repository):
     try:
       results = _svn_repos.svn_repos_trace_node_locations(
                       self.fs_ptr, path, rev, [old_rev], _allow_all, None)
-    except _svn.SVNerr, e:
+    except _svn.SVNerr as e:
       if e.get_code() == _svn.SVN_ERR_FS_NOT_FOUND:
         raise vclib.ItemNotFound(path)
       raise
@@ -762,7 +749,7 @@ class LocalSubversionRepository(vclib.Repository):
           mid = (peg_revision + 1 + limit_revision) / 2
           try:
             mid_id = _svn_repos.svn_fs_node_id(self._getroot(mid), path)
-          except _svn.SVNerr, e:
+          except _svn.SVNerr as e:
             if e.get_code() == _svn.SVN_ERR_FS_NOT_FOUND:
               cmp = -1
             else:

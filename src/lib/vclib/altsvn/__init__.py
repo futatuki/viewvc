@@ -14,8 +14,23 @@
 
 import os.path
 import re
+import sys
 from ._svn import canonicalize_path as _canonicalize_path
 from ._svn import canonicalize_rootpath as canonicalize_rootpath
+
+# for compatibility between Python 2 and Python 3
+_default_encoding = sys.getdefaultencoding()
+
+def setdefaultencoding(enc):
+    codecs.lookup(enc)
+    _default_encoding = enc
+    return
+
+
+def _norm(s, encoding=_default_encoding, errors='surrogateescape'):
+    return (s.decode(encoding, errors)
+                if not isinstance(s, str) and isinstance(s, bytes) else s)
+
 
 _re_url = re.compile('^(http|https|file|svn|svn\+[^:]+)://')
 

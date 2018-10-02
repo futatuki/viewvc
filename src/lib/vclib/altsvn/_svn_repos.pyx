@@ -870,17 +870,17 @@ cdef _c_.svn_error_t * _cb_svn_repos_authz_func_wrapper(
     try:
         allowed = btn.fnobj(root, path, btn.btn, pool)
         _c_allowed[0] = _c_.TRUE if allowed else _c_.FALSE
-    except _svn.SVNerr, pyerr:
+    except _svn.SVNerr as pyerr:
         svnerr = pyerr.svnerr
         _c_err = _c_.svn_error_dup(svnerr.geterror())
         del pyerr
-    except AssertionError, err:
+    except AssertionError as err:
         _c_err = _c_.svn_error_create(
                     _c_.SVN_ERR_ASSERTION_FAIL, NULL, str(err))
-    except KeyboardInterrupt, err:
+    except KeyboardInterrupt as err:
         _c_err = _c_.svn_error_create(
                     _c_.SVN_ERR_CANCELLED, NULL, str(err))
-    except BaseException, err:
+    except BaseException as err:
         _c_err = _c_.svn_error_create(
                     _c_.SVN_ERR_BASE, NULL, str(err))
     return _c_err
@@ -1592,17 +1592,17 @@ IF SVN_API_VER >= (1, 7):
         try:
             btn.fnobj(btn, _c_line_no, _c_revision, author, date,
                         <bytes>_c_line)
-        except _svn.SVNerr, serr:
+        except _svn.SVNerr as serr:
             svnerr = serr.svnerr
             _c_err = _c_.svn_error_dup(svnerr.geterror())
             del serr
-        except AssertionError, err:
+        except AssertionError as err:
             _c_err = _c_.svn_error_create(
                         _c_.SVN_ERR_ASSERTION_FAIL, NULL, str(err))
-        except KeyboardInterrupt, err:
+        except KeyboardInterrupt as err:
             _c_err = _c_.svn_error_create(
                         _c_.SVN_ERR_CANCELLED, NULL, str(err))
-        except BaseException, err:
+        except BaseException as err:
             _c_err = _c_.svn_error_create(
                         _c_.SVN_ERR_BASE, NULL, str(err))
         return _c_err
@@ -1635,17 +1635,17 @@ ELIF SVN_API_VER >= (1, 5):
         try:
             btn.fnobj(btn, _c_line_no, _c_revision, <bytes>_c_author, date,
                         <bytes>_c_line)
-        except _svn.SVNerr, serr:
+        except _svn.SVNerr as serr:
             svnerr = serr.svnerr
             _c_err = _c_.svn_error_dup(svnerr.geterror())
             del serr
-        except AssertionError, err:
+        except AssertionError as err:
             _c_err = _c_.svn_error_create(
                         _c_.SVN_ERR_ASSERTION_FAIL, NULL, str(err))
-        except KeyboardInterrupt, err:
+        except KeyboardInterrupt as err:
             _c_err = _c_.svn_error_create(
                         _c_.SVN_ERR_CANCELLED, NULL, str(err))
-        except BaseException, err:
+        except BaseException as err:
             _c_err = _c_.svn_error_create(
                         _c_.SVN_ERR_BASE, NULL, str(err))
         return _c_err
@@ -1677,17 +1677,17 @@ ELSE:
         try:
             btn.fnobj(btn, _c_line_no, _c_revision, <bytes>_c_author, date,
                         <bytes>_c_line)
-        except _svn.SVNerr, serr:
+        except _svn.SVNerr as serr:
             svnerr = serr.svnerr
             _c_err = _c_.svn_error_dup(svnerr.geterror())
             del serr
-        except AssertionError, err:
+        except AssertionError as err:
             _c_err = _c_.svn_error_create(
                         _c_.SVN_ERR_ASSERTION_FAIL, NULL, str(err))
-        except KeyboardInterrupt, err:
+        except KeyboardInterrupt as err:
             _c_err = _c_.svn_error_create(
                         _c_.SVN_ERR_CANCELLED, NULL, str(err))
-        except BaseException, err:
+        except BaseException as err:
             _c_err = _c_.svn_error_create(
                         _c_.SVN_ERR_BASE, NULL, str(err))
         return _c_err
