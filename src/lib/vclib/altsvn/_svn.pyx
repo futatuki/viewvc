@@ -105,7 +105,7 @@ ELSE:
 # from "svn_types.h" representation of svn_error_t
 cdef class Svn_error(object):
 #    cdef _c_.svn_error_t * _c_error
-#    cdef object str_msg
+#    cdef object bytes_msg
     def __cinit__(self, msg=None, stat=None):
         self._c_error = NULL
     def __init__(self, msg=None, stat=None):
@@ -114,11 +114,11 @@ cdef class Svn_error(object):
         if stat:
             ast = stat
             if msg:
-                self.str_msg = str(msg)
                 IF PY_VERSION < (3, 0, 0):
-                    _c_msg = self.str_msg
+                    self.bytes_msg = str(msg)
                 ELSE:
-                    _c_msg = str_msg.encode('utf-8')
+                    self.bytes_msg = str(msg).decode('utf-8')
+                _c_msg = self.bytes_msg
             else:
                 _c_msg = NULL
             self._c_error = _c_.svn_error_create(stat, NULL, _c_msg)

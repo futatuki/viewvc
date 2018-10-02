@@ -22,7 +22,7 @@ cdef Apr_Pool _root_pool
 
 cdef class Svn_error(object):
     cdef svn_types.svn_error_t * _c_error
-    cdef object str_msg
+    cdef object bytes_msg
     cdef seterror(self, svn_types.svn_error_t * err)
     cdef svn_types.svn_error_t * geterror(self)
 
