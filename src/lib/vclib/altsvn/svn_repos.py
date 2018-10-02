@@ -37,7 +37,7 @@ def setdefaultencoding(enc):
     _default_encoding = enc
     return
 
-def _norm(s, encoding=_default_encoding, errors='strict'):
+def _norm(s, encoding=_default_encoding, errors='surrogateescape'):
     return (s.decode(encoding, errors)
                 if not isinstance(s, str) and isinstance(s, bytes) else s)
 

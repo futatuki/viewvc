@@ -2,6 +2,7 @@ include "_svn_api_ver.pxi"
 include "_py_ver.pxi"
 from cpython.ref cimport PyObject
 from libc.string cimport memcpy
+from libc.stdint cimport int64_t
 cimport _svn_repos_capi as _c_
 cimport _svn
 from . import _svn
@@ -1526,12 +1527,16 @@ def _get_history_helper(
 
 # _get_annotated_source() ... helper for LocalSubversionRepository.annotate()
 # custom baton for _get_annotated_source()
-cdef class CbBlameContainer(_svn.CbContainer):
-    cdef _c_.svn_revnum_t first_rev
-    cdef object include_text
+cdef class CbBlameContainer(object):
+    cdef object fnobj
+    cdef public object btn
+    cdef public _c_.svn_revnum_t first_rev
+    cdef public object include_text
     def __cinit__(
-            self, fnobj, btn, pool=None, first_rev=_c_.SVN_INVALID_REVNUM,
+            self, fnobj, btn, first_rev=_c_.SVN_INVALID_REVNUM,
             include_text=False, **m):
+        self.fnobj = fnobj
+        self.btn = btn
         self.first_rev = first_rev
         self.include_text = include_text
 
@@ -1553,6 +1558,7 @@ IF SVN_API_VER >= (1, 7):
         cdef _svn.Svn_error svnerr
         cdef CbBlameContainer btn
         cdef _svn.SvnStringTransStr trans_svn_string
+        cdef _svn.SvnStringTransBytes trans_svn_string_bytes
         cdef _c_.svn_string_t * _c_author
         cdef object author
         cdef _c_.svn_string_t * _c_date_string
@@ -1574,13 +1580,14 @@ IF SVN_API_VER >= (1, 7):
                             _c_rev_props, _c_.SVN_PROP_REVISION_DATE,
                             _c_.APR_HASH_KEY_STRING)
         if _c_date_string is not NULL:
-            trans_svn_string.set_ptr(_c_date_string)
-            date_string = trans_svn_string.to_object()
+            trans_svn_string_bytes = _svn.SvnStringTransBytes()
+            trans_svn_string_bytes.set_ptr(_c_date_string)
+            date_string = trans_svn_string_bytes.to_object()
             if date_string:
                 _c_err = _c_.svn_time_from_cstring(
-                                    &_c_date, <bytes>date_string, _c_pool)
+                                    &_c_date, date_string, _c_pool)
                 if _c_err is NULL:
-                    date = _c_date
+                    date = <int64_t>(_c_date / 1000000)
         _c_err = NULL
         try:
             btn.fnobj(btn, _c_line_no, _c_revision, author, date,
@@ -1621,7 +1628,7 @@ ELIF SVN_API_VER >= (1, 5):
             _c_err = _c_.svn_time_from_cstring(
                                 &_c_date, _c_date_string, _c_pool)
             if _c_err is NULL:
-                date = _c_date
+                date = <int64_t>(_c_date / 1000000)
         else:
             date = None
         _c_err = NULL
@@ -1663,7 +1670,7 @@ ELSE:
             _c_err = _c_.svn_time_from_cstring(
                                 &_c_date, _c_date_string, _c_pool)
             if _c_err is NULL:
-                date = _c_date
+                date = <int64_t>(_c_date / 1000000)
         else:
             date = None
         _c_err = NULL
@@ -1711,8 +1718,7 @@ def _get_annotated_source(
     assert callable(blame_func)
     _c_config_dir = <char *>config_dir if config_dir else NULL
     if pool is not None:
-        assert (    isinstance(pool, _svn.Apr_Pool)
-                and (<_svn.Apr_Pool>pool)._c_pool is not NULL)
+        assert (<_svn.Apr_Pool?>pool)._c_pool is not NULL
         ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>pool)._c_pool)
     else:
@@ -1749,7 +1755,7 @@ def _get_annotated_source(
         _c_ctx[0].auth_baton = _c_auth_baton
         ann_list = []
         btn = CbBlameContainer(
-                    blame_func, ann_list, None, oldest_rev, include_text)
+                    blame_func, ann_list, oldest_rev, include_text)
         IF SVN_API_VER >= (1, 5):
             _c_diff_opt = _c_.svn_diff_file_options_create(_c_tmp_pool)
         IF SVN_API_VER >= (1, 7):
