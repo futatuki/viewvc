@@ -1,4 +1,5 @@
 include "_svn_api_ver.pxi"
+include "_py_ver.pxi"
 from libc.string cimport memcpy
 from libc.stdint cimport int64_t
 cimport _svn_repos_capi as _c_
@@ -733,10 +734,12 @@ def svn_fs_revision_proplist(
 
 # This class placeholder of contents of svn_lock_t, enough to the extent
 # to use from svn_repos.py[x], but not provide full function.
-class SvnLock(object):
-    def __init__(self, name, token, owner, comment, is_dav_comment,
-                 creation_date, expiration_date):
-        self.name = name
+cdef class SvnLock(object):
+    def __init__(
+             self, bytes path, bytes token, object owner, object comment,
+             _c_.svn_boolean_t is_dav_comment,
+             _c_.apr_time_t creation_date, _c_.apr_time_t expiration_date):
+        self.path = path
         self.token = token
         self.owner = owner
         self.comment = comment
@@ -745,13 +748,30 @@ class SvnLock(object):
         self.expiration_date = expiration_date
 
 cdef object _svn_lock_to_object(_c_.svn_lock_t * _c_lock):
+    cdef bytes path
+    cdef bytes token
+    cdef object owner
+    cdef object comment
     if _c_lock is NULL:
         return None
     else:
+        path = None if _c_lock[0].path is NULL else <bytes>(_c_lock[0].path)
+        token = None if _c_lock[0].token is NULL else <bytes>(_c_lock[0].token)
+        if _c_lock[0].owner is NULL:
+            owner = None
+        else:
+            owner = <bytes>(_c_lock[0].owner)
+            IF PY_VERSION >= (3, 0, 0):
+                owner = _svn._norm(owner)
+        if _c_lock[0].comment is NULL:
+            comment = None
+        else:
+            comment = <bytes>(_c_lock[0].comment)
+            IF PY_VERSION >= (3, 0, 0):
+                comment = _svn._norm(comment)
         is_dav_comment = (True if _c_lock[0].is_dav_comment != _c_.FALSE
                                else False)
-        return SvnLock(_c_lock[0].name, _c_lock[0].token, _c_lock[0].owner,
-                       _c_lock[0].comment, is_dav_comment,
+        return SvnLock(path, token, owner, comment, is_dav_comment,
                        _c_lock[0].creation_date, _c_lock[0].expiration_date)
 
 # warn: this function doesn't provide full functionally

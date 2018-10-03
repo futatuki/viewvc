@@ -63,6 +63,15 @@ cdef class svn_repos_t(object):
     cdef svn_repos_t set_repos(
             svn_repos_t self, _c_.svn_repos_t * repos, object pool)
 
+cdef class SvnLock(object):
+    cdef public object path
+    cdef public object token
+    cdef public object owner
+    cdef public object comment
+    cdef public object is_dav_comment
+    cdef public _c_.apr_time_t creation_date
+    cdef public _c_.apr_time_t expiration_date
+
 cdef class _ChangedPath(object):
     cdef public _c_.svn_node_kind_t item_kind
     cdef public _c_.svn_boolean_t prop_changes
