@@ -27,3 +27,17 @@ cdef extern from "svn_auth.h" nogil:
     void svn_auth_open(
             svn_auth_baton_t ** auth_baton,
             const apr_array_header_t * providers, apr_pool_t * pool)
+    IF SVN_API_VER >= (1, 4) and SVN_API_VER < (1, 6):
+        # Of course, these are also provided for API version 1.6 and above,
+        # we don't use them directory, use svn_cmdline_create_auth_baton()
+        # to set them.
+        void svn_auth_get_simple_provider(
+                svn_auth_provider_object_t ** provider, apr_pool_t * pool)
+        void svn_auth_get_username_provider(
+                svn_auth_provider_object_t ** provider, apr_pool_t * pool)
+        void svn_auth_get_server_trunst_file_provider(
+                svn_auth_provider_object_t ** provider, apr_pool_t * pool)
+        void svn_auth_get_client_cert_file_provider(
+                svn_auth_provider_object_t ** provider, apr_pool_t * pool)
+        void svn_auth_get_client_cert_pw_file_provider(
+                svn_auth_provider_object_t ** provider, apr_pool_t * pool)

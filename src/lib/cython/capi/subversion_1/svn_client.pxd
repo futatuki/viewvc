@@ -4,11 +4,24 @@ from apr_1.apr_hash cimport apr_hash_t
 from apr_1.apr_pools cimport apr_pool_t
 from subversion_1.svn_types cimport svn_error_t, svn_boolean_t, svn_revnum_t
 from subversion_1.svn_opt cimport svn_opt_revision_t
-from subversion_1.svn_auth cimport svn_auth_baton_t
+from subversion_1.svn_auth cimport *
 IF SVN_API_VER >= (1, 4):
     from subversion_1.svn_diff cimport svn_diff_file_options_t
 
 cdef extern from "svn_client.h" nogil:
+    IF SVN_API_VER < (1, 4):
+        # of course, these functions are provided for API version 1.4 and
+        # above for compatibility, but in those case, we use newer API instead
+        void svn_client_get_simple_provider(
+                svn_auth_provider_object_t ** provider, apr_pool_t * pool)
+        void svn_client_get_username_provider(
+                svn_auth_provider_object_t ** provider, apr_pool_t * pool)
+        void svn_client_get_ssl_server_trust_file_provider(
+                svn_auth_provider_object_t ** provider, apr_pool_t * pool)
+        void svn_client_get_ssl_client_cert_file_provider(
+                svn_auth_provider_object_t ** provider, apr_pool_t * pool)
+        void svn_client_get_ssl_client_cert_pw_file_provider(
+                svn_auth_provider_object_t ** provider, apr_pool_t * pool)
     # we don't use full feature of structure svn_client_ctx_t,
     # and Cython allowes partial declaration of members ...
     ctypedef struct svn_client_ctx_t:

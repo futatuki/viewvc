@@ -72,6 +72,7 @@ cdef extern from "svn_types.h" nogil:
     enum: SVN_DIRENT_LAST_AUTHOR
     enum: SVN_DIRENT_ALL
     enum: SVN_STREAM_CHUNK_SIZE
+    ctypedef svn_error_t * (* svn_cancel_func_t)(void * cancel_baton)
     IF SVN_API_VER >= (1, 2):
         ctypedef struct svn_lock_t:
             const char *path
