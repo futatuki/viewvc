@@ -30,6 +30,12 @@ cdef extern from "svn_io.h" nogil:
         svn_error_t * svn_io_file_open(
                 apr_file_t ** new_file, const char * fname, apr_int32_t flag,
                 apr_fileperms_t perm, apr_pool_t * pool)
+        svn_error_t * svn_io_file_close(apr_file_t *file, apr_pool_t *pool)
+        ctypedef svn_error_t * (* svn_close_fn_t)(void * baton)
+        void svn_stream_set_close(
+                svn_stream_t *stream, svn_close_fn_t close_fn)
         IF SVN_API_VER >= (1, 4):
             svn_stream_t * svn_stream_from_aprfile2(
                     apr_file_t * file, svn_boolean_t disown, apr_pool_t * pool)
+        svn_stream_t * svn_stream_from_aprfile(
+                    apr_file_t * file, apr_pool_t * pool)

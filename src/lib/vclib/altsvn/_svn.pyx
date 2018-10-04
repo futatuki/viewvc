@@ -794,52 +794,68 @@ cdef class SvnBooleanTrans(TransPtr):
         return <void **>&(self._c_bool)
 
 # for test, not used by vclib modules
-IF SVN_API_VER >= (1, 4):
-    def svn_stream_open_readonly(
-            const char * path, result_pool=None, scratch_pool=None):
-        cdef _c_.apr_status_t ast
-        cdef _c_.apr_pool_t * _c_tmp_pool
-        cdef Apr_Pool r_pool
-        cdef _c_.svn_stream_t * _c_stream
-        cdef _c_.svn_error_t * serr
-        cdef Svn_error pyerr
-        IF SVN_API_VER < (1, 6):
-            cdef _c_.apr_file_t * _c_file
+IF SVN_API_VER < (1, 4):
+    # from ^/subversion/tags/1.3.0/subversion/libsvn_subr/stream.c,
+    # private struct used by svn_stream_from_aprfile(),
+    # and may work on 1.10.0, but there is no warranty to work in future...
+    ctypedef struct baton_apr:
+        _c_.apr_file_t * file
+        _c_.apr_pool_t * pool
+    cdef _c_.svn_error_t * close_handler_apr(void *baton) nogil:
+        cdef baton_apr * btn
+        btn = <baton_apr *>baton
+        return _c_.svn_io_file_close(btn[0].file, btn[0].pool)
 
-        if result_pool is not None:
-            assert (    isinstance(result_pool, Apr_Pool)
-                    and (<Apr_Pool>result_pool)._c_pool is not NULL)
-            r_pool = result_pool
-        else:
-            r_pool = _root_pool
-        if scratch_pool is not None:
-            assert (    isinstance(scratch_pool, Apr_Pool)
-                    and (<Apr_Pool>scratch_pool)._c_pool is not NULL)
-            ast = _c_.apr_pool_create(&_c_tmp_pool,
-                                           (<Apr_Pool>scratch_pool)._c_pool)
-        else:
-            ast = _c_.apr_pool_create(&_c_tmp_pool, _root_pool._c_pool)
-        if ast:
-            raise MemoryError()
-        try:
-            IF SVN_API_VER >= (1, 6):
-                serr = _c_.svn_stream_open_readonly(
-                                &_c_stream, path, r_pool._c_pool, _c_tmp_pool)
-                if serr is not NULL:
-                    pyerr = Svn_error().seterror(serr)
-                    raise SVNerr(pyerr)
-            ELSE:
-                serr = _c_.svn_io_file_open(
-                            &_c_file, path,
-                            _c_.APR_READ | _c_.APR_BUFFERED,
-                            _c_.APR_OS_DEFAULT, r_pool._c_pool)
-                if serr is not NULL:
-                    pyerr = Svn_error().seterror(serr)
-                    raise SVNerr(pyerr)
+def svn_stream_open_readonly(
+        const char * path, result_pool=None, scratch_pool=None):
+    cdef _c_.apr_status_t ast
+    cdef _c_.apr_pool_t * _c_tmp_pool
+    cdef Apr_Pool r_pool
+    cdef _c_.svn_stream_t * _c_stream
+    cdef _c_.svn_error_t * serr
+    cdef Svn_error pyerr
+    IF SVN_API_VER < (1, 6):
+        cdef _c_.apr_file_t * _c_file
+
+    if result_pool is not None:
+        assert (    isinstance(result_pool, Apr_Pool)
+                and (<Apr_Pool>result_pool)._c_pool is not NULL)
+        r_pool = result_pool
+    else:
+        r_pool = _root_pool
+    if scratch_pool is not None:
+        assert (    isinstance(scratch_pool, Apr_Pool)
+                and (<Apr_Pool>scratch_pool)._c_pool is not NULL)
+        ast = _c_.apr_pool_create(&_c_tmp_pool,
+                                       (<Apr_Pool>scratch_pool)._c_pool)
+    else:
+        ast = _c_.apr_pool_create(&_c_tmp_pool, _root_pool._c_pool)
+    if ast:
+        raise MemoryError()
+    try:
+        IF SVN_API_VER >= (1, 6):
+            serr = _c_.svn_stream_open_readonly(
+                            &_c_stream, path, r_pool._c_pool, _c_tmp_pool)
+            if serr is not NULL:
+                pyerr = Svn_error().seterror(serr)
+                raise SVNerr(pyerr)
+        ELSE:
+            serr = _c_.svn_io_file_open(
+                        &_c_file, path,
+                        _c_.APR_READ | _c_.APR_BUFFERED,
+                        _c_.APR_OS_DEFAULT, r_pool._c_pool)
+            if serr is not NULL:
+                pyerr = Svn_error().seterror(serr)
+                raise SVNerr(pyerr)
+            IF SVN_API_VER >= (1, 4):
                 _c_stream = _c_.svn_stream_from_aprfile2(
                                     _c_file, _c_.FALSE, r_pool._c_pool)
-            stream = svn_stream_t()
-            stream.set_stream(_c_stream, r_pool)
-        finally:
-            _c_.apr_pool_destroy(_c_tmp_pool)
-        return stream
+            ELSE:
+                _c_stream = _c_.svn_stream_from_aprfile(
+                                    _c_file, r_pool._c_pool)
+                _c_.svn_stream_set_close(_c_stream, close_handler_apr)
+        stream = svn_stream_t()
+        stream.set_stream(_c_stream, r_pool)
+    finally:
+        _c_.apr_pool_destroy(_c_tmp_pool)
+    return stream
