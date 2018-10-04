@@ -220,6 +220,34 @@ def svn_ra_get_latest_revnum(svn_ra_session_t session, scratch_pool):
         _c_.apr_pool_destroy(_c_tmp_pool)
     return _c_rev
 
+def svn_ra_check_path(
+        svn_ra_session_t session, const char * _c_path,
+        _c_.svn_revnum_t _c_revision, object scratch_pool):
+    cdef _c_.apr_status_t ast
+    cdef _c_.apr_pool_t * _c_tmp_pool
+    cdef _c_.svn_error_t * serr
+    cdef _svn.Svn_error pyerr
+    cdef _c_.svn_node_kind_t _c_kind
+
+    if scratch_pool is not None:
+        assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
+        ast = _c_.apr_pool_create(&_c_tmp_pool,
+                                       (<_svn.Apr_Pool>scratch_pool)._c_pool)
+    else:
+        ast = _c_.apr_pool_create(&_c_tmp_pool, _svn._root_pool._c_pool)
+    if ast:
+        raise MemoryError()
+    try:
+        serr = _c_.svn_ra_check_path(
+                        session._c_session, _c_path, _c_revision, &_c_kind,
+                        _c_tmp_pool)
+        if serr is not NULL:
+            pyerr = _svn.Svn_error().seterror(serr)
+            raise _svn.SVNerr(pyerr)
+    finally:
+        _c_.apr_pool_destroy(_c_tmp_pool)
+    return _c_kind
+
 # pool free object to hold member of svn_dirent_t
 # Although the C API document says svn_dirent_t is "@since New in 1.6",
 # but there exists in 1.3.0 source (r858024) and used by
