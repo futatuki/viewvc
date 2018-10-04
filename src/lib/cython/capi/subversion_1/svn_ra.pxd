@@ -119,3 +119,6 @@ cdef extern from "svn_ra.h" nogil:
                 svn_ra_session_t ** session_p, const char * repos_URL,
                 const svn_ra_callbacks2_t * callbacks, void * callback_baton,
                 apr_hash_t * config, apr_pool_t *pool)
+    svn_error_t * svn_ra_get_latest_revnum(
+            svn_ra_session_t * session, svn_revnum_t * latest_revnum,
+            apr_pool_t * pool)

@@ -1,8 +1,9 @@
 include "_svn_api_ver.pxi"
-from apr_1.apr cimport apr_int64_t
-from apr_1.apr_hash cimport apr_hash_t
+from apr_1.apr cimport apr_int64_t, apr_uint32_t
 from apr_1.apr_pools cimport apr_pool_t
-from subversion_1.svn_types cimport svn_error_t, svn_boolean_t, svn_revnum_t
+from apr_1.apr_hash cimport apr_hash_t
+from apr_1.apr_tables cimport apr_array_header_t
+from subversion_1.svn_types cimport *
 from subversion_1.svn_opt cimport svn_opt_revision_t
 from subversion_1.svn_auth cimport *
 IF SVN_API_VER >= (1, 4):
@@ -116,3 +117,58 @@ cdef extern from "svn_client.h" nogil:
             const svn_opt_revision_t * start, const svn_opt_revision_t * end,
             svn_client_blame_receiver_t receiver, void * receiver_baton,
             svn_client_ctx_t * ctx, apr_pool_t * pool)
+
+    IF SVN_API_VER >= (1, 8):
+        ctypedef svn_error_t * (* svn_client_list_func2_t)(
+                void * baton, const char * path, const svn_dirent_t * dirent,
+                const svn_lock_t * lock, const char * abs_path,
+                const char * external_parent_url, const char * external_target,
+                apr_pool_t * scratch_pool)
+    IF SVN_API_VER >= (1, 4):
+        ctypedef svn_error_t  *(* svn_client_list_func_t)(
+                void * baton, const char * path, const svn_dirent_t * dirent,
+                const svn_lock_t * lock, const char * abs_path,
+                apr_pool_t * pool)
+    IF SVN_API_VER >= (1, 10):
+        svn_error_t * svn_client_list4(
+                const char * path_or_url,
+                const svn_opt_revision_t * peg_revision,
+                const svn_opt_revision_t * revision,
+                const apr_array_header_t *patterns,
+                svn_depth_t depth, apr_uint32_t dirent_fields,
+                svn_boolean_t fetch_locks, svn_boolean_t include_externals,
+                svn_client_list_func2_t list_func, void * baton,
+                svn_client_ctx_t * ctx, apr_pool_t * scratch_pool)
+    IF SVN_API_VER >= (1, 8):
+        svn_error_t * svn_client_list3(
+                const char * path_or_url,
+                const svn_opt_revision_t * peg_revision,
+                const svn_opt_revision_t * revision,
+                svn_depth_t depth, apr_uint32_t dirent_fields,
+                svn_boolean_t fetch_locks, svn_boolean_t include_externals,
+                svn_client_list_func2_t list_func, void * baton,
+                svn_client_ctx_t * ctx, apr_pool_t * scratch_pool)
+    IF SVN_API_VER >= (1, 5):
+        svn_error_t * svn_client_list2(
+                const char * path_or_url,
+                const svn_opt_revision_t * peg_revision,
+                const svn_opt_revision_t * revision,
+                svn_depth_t depth, apr_uint32_t dirent_fields,
+                svn_boolean_t fetch_locks, svn_client_list_func_t list_func,
+                void * baton, svn_client_ctx_t * ctx, apr_pool_t * pool)
+    IF SVN_API_VER >= (1, 4):
+        svn_error_t * svn_client_list(
+                const char * path_or_url,
+                const svn_opt_revision_t * peg_revision,
+                const svn_opt_revision_t * revision,
+                svn_boolean_t recurse, apr_uint32_t dirent_fields,
+                svn_boolean_t fetch_locks, svn_client_list_func_t list_func,
+                void * baton, svn_client_ctx_t * ctx, apr_pool_t * pool)
+    IF SVN_API_VER >= (1, 3):
+        svn_error_t * svn_client_ls3(
+                apr_hash_t ** dirents, apr_hash_t ** locks,
+                const char * path_or_url,
+                const svn_opt_revision_t * peg_revision,
+                const svn_opt_revision_t * revision,
+                svn_boolean_t recurse, svn_client_ctx_t * ctx,
+                apr_pool_t * pool)

@@ -39,10 +39,12 @@ IF SVN_API_VER < (1, 10):
         cdef object to_object(self)
         IF SVN_API_VER >= (1, 6):
             cdef void set_c_change(
-                        self, _c_.svn_fs_path_change2_t * _c_change)
+                    self, _c_.svn_fs_path_change2_t * _c_change,
+                    object result_pool)
         ELSE:
             cdef void set_c_change(
-                        self, _c_.svn_fs_path_change_t * _c_change)
+                    self, _c_.svn_fs_path_change_t * _c_change,
+                    object result_pool)
         cdef void ** ptr_ref(self)
 
 cdef class NodeKindTrans(_svn.TransPtr): 
@@ -71,6 +73,8 @@ cdef class SvnLock(object):
     cdef public object is_dav_comment
     cdef public _c_.apr_time_t creation_date
     cdef public _c_.apr_time_t expiration_date
+
+cdef object _svn_lock_to_object(const _c_.svn_lock_t * _c_lock)
 
 cdef class _ChangedPath(object):
     cdef public _c_.svn_node_kind_t item_kind

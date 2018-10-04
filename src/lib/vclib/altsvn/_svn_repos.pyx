@@ -186,10 +186,6 @@ IF SVN_API_VER < (1, 10):
                 self.result_pool = result_pool
             else:
                 self.result_pool = _svn._root_pool
-        def __dealloc__(self):
-            if self._c_tmp_pool is not NULL:
-                del self.tmp_pool
-                self.tmp_pool = None
         cdef object to_object(self):
             IF SVN_API_VER == (1, 9):
                 return FsPathChange(
@@ -208,6 +204,7 @@ IF SVN_API_VER < (1, 10):
             ELIF SVN_API_VER >= (1, 6):
                 return FsPathChange(
                         svn_fs_id_t().set_fs_id(
+                                <_c_.svn_fs_id_t *>
                                         ((self._c_change)[0].node_rev_id),
                                 self.result_pool),
                         (self._c_change)[0].change_kind,
@@ -220,6 +217,7 @@ IF SVN_API_VER < (1, 10):
             ELSE:
                 return FsPathChange(
                         svn_fs_id_t().set_fs_id(
+                                <_c_.svn_fs_id_t *>
                                         ((self._c_change)[0].node_rev_id),
                                 self.result_pool),
                         (self._c_change)[0].change_kind,
@@ -229,14 +227,14 @@ IF SVN_API_VER < (1, 10):
             cdef void set_c_change(
                     self, _c_.svn_fs_path_change2_t * _c_change,
                     object result_pool):
-                assert <_svn.Apr_Pool?>result_pool._c_pool is not NULL
+                assert (<_svn.Apr_Pool?>result_pool)._c_pool is not NULL
                 self._c_change = _c_change
                 self.result_pool = result_pool
         ELSE:
             cdef void set_c_change(
                     self, _c_.svn_fs_path_change_t * _c_change,
-                    object pool):
-                assert <_svn.Apr_Pool?>result_pool._c_pool is not NULL
+                    object result_pool):
+                assert (<_svn.Apr_Pool?>result_pool)._c_pool is not NULL
                 self._c_change = _c_change
                 self._c_change = _c_change
         cdef void ** ptr_ref(self):
@@ -257,6 +255,7 @@ def svn_fs_paths_changed(
         cdef _c_.svn_fs_path_change_iterator_t * _c_iterator
         cdef _c_.svn_fs_path_change3_t * _c_change
     ELSE:
+        cdef _svn.Apr_Pool r_pool
         cdef _svn.HashTrans pt_trans
 
     if scratch_pool is not None:
@@ -303,15 +302,20 @@ def svn_fs_paths_changed(
             # As svn_fs_id_t object shall be allocated from result_pool
             # as a part of content of svn_fs_change2_t or svn_fs_change_t,
             # we must let FsPathChangeTrans know where it is allocated from.
-            pt_trans = FsPathChangeTrans(result_pool, scratch_pool)
+            if result_pool is not None:
+                assert (<_svn.Apr_Pool?>result_pool)._c_pool is not NULL
+                r_pool = result_pool
+            else:
+                r_pool = _svn._root_pool
+            pt_trans = FsPathChangeTrans(r_pool, scratch_pool)
             IF SVN_API_VER >= (1, 6):
                 serr = _c_.svn_fs_paths_changed2(
                             <_c_.apr_hash_t **>(pt_trans.ptr_ref()),
-                            root._c_ptr, result_pool._c_pool)
+                            root._c_ptr, r_pool._c_pool)
             ELSE:
                 serr = _c_.svn_fs_paths_changed(
                             <_c_.apr_hash_t **>(pt_trans.ptr_ref()),
-                            root._c_ptr, result_pool._c_pool)
+                            root._c_ptr, r_pool._c_pool)
             if serr is not NULL:
                 pyerr = _svn.Svn_error().seterror(serr)
                 raise _svn.SVNerr(pyerr)
@@ -747,7 +751,7 @@ cdef class SvnLock(object):
         self.creation_date = creation_date
         self.expiration_date = expiration_date
 
-cdef object _svn_lock_to_object(_c_.svn_lock_t * _c_lock):
+cdef object _svn_lock_to_object(const _c_.svn_lock_t * _c_lock):
     cdef bytes path
     cdef bytes token
     cdef object owner
@@ -1776,7 +1780,7 @@ def _get_annotated_source(
         ann_list = []
         btn = CbBlameContainer(
                     blame_func, ann_list, oldest_rev, include_text)
-        IF SVN_API_VER >= (1, 5):
+        IF SVN_API_VER >= (1, 4):
             _c_diff_opt = _c_.svn_diff_file_options_create(_c_tmp_pool)
         IF SVN_API_VER >= (1, 7):
             serr = _c_.svn_client_blame5(
@@ -1803,7 +1807,7 @@ def _get_annotated_source(
                         &(opt_oldest_rev._c_opt_revision),
                         &(opt_rev._c_opt_revision),
                         _c_diff_opt, _c_.FALSE,
-                        _cb_get_annotated_source2, <void *>btn,
+                        _cb_get_annotated_source, <void *>btn,
                         _c_ctx, _c_tmp_pool)
         ELSE:
             serr = _c_.svn_client_blame2(

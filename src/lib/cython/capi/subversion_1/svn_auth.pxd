@@ -35,9 +35,9 @@ cdef extern from "svn_auth.h" nogil:
                 svn_auth_provider_object_t ** provider, apr_pool_t * pool)
         void svn_auth_get_username_provider(
                 svn_auth_provider_object_t ** provider, apr_pool_t * pool)
-        void svn_auth_get_server_trunst_file_provider(
+        void svn_auth_get_ssl_server_trust_file_provider(
                 svn_auth_provider_object_t ** provider, apr_pool_t * pool)
-        void svn_auth_get_client_cert_file_provider(
+        void svn_auth_get_ssl_client_cert_file_provider(
                 svn_auth_provider_object_t ** provider, apr_pool_t * pool)
-        void svn_auth_get_client_cert_pw_file_provider(
+        void svn_auth_get_ssl_client_cert_pw_file_provider(
                 svn_auth_provider_object_t ** provider, apr_pool_t * pool)

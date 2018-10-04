@@ -8,6 +8,7 @@ from subversion_1.svn_types cimport *
 from subversion_1.svn_error cimport *
 from subversion_1.svn_config cimport *
 from subversion_1.svn_auth cimport *
+from subversion_1.svn_opt cimport *
 from subversion_1.svn_client cimport *
 from subversion_1.svn_ra cimport *
 IF SVN_API_VER >= (1, 6):

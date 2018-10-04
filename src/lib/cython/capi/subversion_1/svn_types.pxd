@@ -56,7 +56,7 @@ cdef extern from "svn_types.h" nogil:
             svn_depth_infinity = 3
         const char * svn_depth_to_word(svn_depth_t depth)
         svn_depth_t svn_depth_from_word(const char *word)
-    IF SVN_API_VER >= (1, 6):
+    IF SVN_API_VER >= (1, 3):
         ctypedef struct svn_dirent_t:
             svn_node_kind_t kind
             svn_filesize_t size
