@@ -25,30 +25,6 @@ class PoolError(General): pass
 # for internal use
 class NotImplemented(General): pass
 
-def _initialize():
-    cdef void* errstrbuf
-    cdef _c_.apr_status_t ast
-    cdef int nelm = 1024
-    cdef size_t bufsize
-    cdef crv
-    ast = _c_.apr_initialize()
-    if ast:
-        bufsize = nelm * sizeof(char)
-        errstrbuf = PyMem_Malloc(nelm)
-        if not errstrbuf:
-            raise MemoryError()
-        estr = _c_.apr_strerror(ast, <char *>errstrbuf, bufsize)
-        PyMem_Free(errstrbuf)
-        raise InitError(estr)
-    else:
-        if 0 != atexit(_c_.apr_terminate2):
-            _c_.apr_terminate2()
-            raise MemoryError()
-    return
-
-_initialize()
-del _initialize
-
 # from "apr_pools.h" representation of apr_pool_t
 cdef class Apr_Pool(object):
 #    cdef _c_.apr_pool_t* _c_pool
@@ -58,12 +34,13 @@ cdef class Apr_Pool(object):
         self._parent_pool = None
     def __init__(self, Apr_Pool pool=None):
         cdef _c_.apr_status_t ast
+        global _root_pool
         if pool is None:
             self._parent_pool = _root_pool
-            ast = _c_.apr_pool_create(&(self._c_pool),NULL)
+            ast = _c_.apr_pool_create(&(self._c_pool), _root_pool._c_pool)
         else:
             self._parent_pool = pool
-            ast = _c_.apr_pool_create(&(self._c_pool),pool._c_pool)
+            ast = _c_.apr_pool_create(&(self._c_pool), pool._c_pool)
         if ast:
             raise PoolError()
         self.is_own = _c_.TRUE
@@ -91,7 +68,37 @@ cdef class Apr_Pool(object):
         self._parent_pool = None
 
 cpdef Apr_Pool _root_pool
-_root_pool = Apr_Pool()
+
+def _initialize():
+    cdef void* errstrbuf
+    cdef _c_.apr_status_t ast
+    cdef int nelm = 1024
+    cdef size_t bufsize
+    cdef crv
+    global _root_pool
+    ast = _c_.apr_initialize()
+    if ast:
+        bufsize = nelm * sizeof(char)
+        errstrbuf = PyMem_Malloc(nelm)
+        if not errstrbuf:
+            raise MemoryError()
+        estr = _c_.apr_strerror(ast, <char *>errstrbuf, bufsize)
+        PyMem_Free(errstrbuf)
+        raise InitError(estr)
+    else:
+        if 0 != atexit(_c_.apr_terminate2):
+            _c_.apr_terminate2()
+            raise MemoryError()
+    # setup _root_pool
+    _root_pool = Apr_Pool.__new__(Apr_Pool, None)
+    _root_pool._parent_pool = None
+    _c_.apr_pool_create(&(_root_pool._c_pool), NULL)
+    assert _root_pool._c_pool is not NULL
+    _root_pool.is_own = _c_.TRUE
+    return
+
+_initialize()
+del _initialize
 
 # from "svn_error_codes.h"
 SVN_NO_ERROR                   = _c_.SVN_NO_ERROR
