@@ -68,6 +68,7 @@ cdef class Apr_Pool(object):
         self._parent_pool = None
 
 cpdef Apr_Pool _root_pool
+cpdef Apr_Pool _scratch_pool
 
 def _initialize():
     cdef void* errstrbuf
@@ -75,7 +76,7 @@ def _initialize():
     cdef int nelm = 1024
     cdef size_t bufsize
     cdef crv
-    global _root_pool
+    global _root_pool, _scratch_pool
     ast = _c_.apr_initialize()
     if ast:
         bufsize = nelm * sizeof(char)
@@ -89,12 +90,13 @@ def _initialize():
         if 0 != atexit(_c_.apr_terminate2):
             _c_.apr_terminate2()
             raise MemoryError()
-    # setup _root_pool
+    # setup _root_pool and _scratch_pool
     _root_pool = Apr_Pool.__new__(Apr_Pool, None)
     _root_pool._parent_pool = None
     _c_.apr_pool_create(&(_root_pool._c_pool), NULL)
     assert _root_pool._c_pool is not NULL
     _root_pool.is_own = _c_.TRUE
+    _scratch_pool = Apr_Pool(_root_pool)
     return
 
 _initialize()
@@ -378,9 +380,10 @@ def canonicalize_path(path, scratch_pool=None):
         ast = _c_.apr_pool_create(&_c_tmp_pool,
                                   (<Apr_Pool>scratch_pool)._c_pool)
     else:
-        ast = _c_.apr_pool_create(&_c_tmp_pool, _root_pool._c_pool)
+        _scratch_pool.clear()
+        ast = _c_.apr_pool_create(&_c_tmp_pool, _scratch_pool._c_pool)
     if ast:
-        raise MemoryError()
+        raise PoolError()
     try:
         IF SVN_API_VER >= (1, 7):
             if _c_.svn_path_is_url(path):
@@ -418,9 +421,10 @@ def canonicalize_rootpath(path, scratch_pool=None):
         ast = _c_.apr_pool_create(&_c_tmp_pool,
                                   (<Apr_Pool>scratch_pool)._c_pool)
     else:
-        ast = _c_.apr_pool_create(&_c_tmp_pool, _root_pool._c_pool)
+        _scratch_pool.clear()
+        ast = _c_.apr_pool_create(&_c_tmp_pool, _scratch_pool._c_pool)
     if ast:
-        raise MemoryError()
+        raise PoolError()
     try:
         if _c_.svn_path_is_url(path):
             IF SVN_API_VER >= (1, 7):
@@ -481,15 +485,19 @@ def rootpath2url(rootpath, path, scratch_pool=None):
     cdef Svn_error pyerr
 
     rootpath = os.path.abspath(rootpath)
-    fullpath = canonicalize_path(os.path.join(rootpath, path))
     if scratch_pool is not None:
-        assert (<Apr_Pool?>scratch_pool)._c_pool is not NULL
+        fullpath = canonicalize_path(os.path.join(rootpath, path),
+                                     scratch_pool)
         ast = _c_.apr_pool_create(&_c_tmp_pool,
                                   (<Apr_Pool>scratch_pool)._c_pool)
     else:
-        ast = _c_.apr_pool_create(&_c_tmp_pool, _root_pool._c_pool)
+        _scratch_pool.clear()
+        fullpath = canonicalize_path(os.path.join(rootpath, path),
+                                     _scratch_pool)
+        _scratch_pool.clear()
+        ast = _c_.apr_pool_create(&_c_tmp_pool, _scratch_pool._c_pool)
     if ast:
-        raise MemoryError()
+        raise PoolError()
     try:
         IF SVN_API_VER >= (1, 7):
             _c_dirent = fullpath
@@ -538,9 +546,10 @@ def datestr_to_date(datestr, scratch_pool=None):
         ast = _c_.apr_pool_create(&_c_tmp_pool,
                                   (<Apr_Pool>scratch_pool)._c_pool)
     else:
-        ast = _c_.apr_pool_create(&_c_tmp_pool, _root_pool._c_pool)
+        _scratch_pool.clear()
+        ast = _c_.apr_pool_create(&_c_tmp_pool, _scratch_pool._c_pool)
     if ast:
-        raise MemoryError()
+        raise PoolError()
     try:
         serr = _c_.svn_time_from_cstring(
                         &_c_when, datestr, _c_tmp_pool)
@@ -611,7 +620,8 @@ def svn_stream_read_full(svn_stream_t stream, len):
 def svn_stream_close(svn_stream_t stream):
     stream.close()
 
-def svn_stream_readline(svn_stream_t stream, const char *eol, pool=None):
+def svn_stream_readline(
+        svn_stream_t stream, const char *eol, scratch_pool=None):
     cdef _c_.apr_status_t ast
     cdef _c_.apr_pool_t * _c_tmp_pool
     cdef _c_.svn_error_t * serr
@@ -621,16 +631,16 @@ def svn_stream_readline(svn_stream_t stream, const char *eol, pool=None):
     cdef object bufstr
     cdef object eof
 
-    assert isinstance(stream, svn_stream_t) and stream._c_ptr is not NULL
-    if pool is not None:
-        assert (    isinstance(pool, Apr_Pool)
-                and (<Apr_Pool>pool)._c_pool is not NULL)
+    assert (<svn_stream_t?>stream)._c_ptr is not NULL
+    if scratch_pool is not None:
+        assert (<Apr_Pool?>scratch_pool)._c_pool is not NULL
         ast = _c_.apr_pool_create(&_c_tmp_pool,
-                                       (<Apr_Pool>pool)._c_pool)
+                                  (<Apr_Pool>scratch_pool)._c_pool)
     else:
-        ast = _c_.apr_pool_create(&_c_tmp_pool, _root_pool._c_pool)
+        _scratch_pool.clear()
+        ast = _c_.apr_pool_create(&_c_tmp_pool, _scratch_pool._c_pool)
     if ast:
-        raise MemoryError()
+        raise PoolError()
     try:
         serr = _c_.svn_stream_readline(stream._c_ptr, &_c_stringbuf,
                                             eol, &_c_eof, _c_tmp_pool)
@@ -662,6 +672,13 @@ cdef class TransPtr(object):
     cdef void ** ptr_ref(self):
         raise NotImplemented()
 
+
+# warn: passing None as scratch_pool to constructor causes memory leak,
+# because _scratch_pool cannot be used as substitute for it here,
+# for the life time policy of the pool. The scratch_pool passed
+# by constructor should be kept alive (this is achieved by reference count
+# of the scratch_pool automatically) and should not be cleared until
+# the HashTrans instance is alive.
 cdef class HashTrans(TransPtr):
     def __cinit__(
             self, TransPtr key_trans, TransPtr val_trans,
@@ -825,20 +842,19 @@ def svn_stream_open_readonly(
         cdef _c_.apr_file_t * _c_file
 
     if result_pool is not None:
-        assert (    isinstance(result_pool, Apr_Pool)
-                and (<Apr_Pool>result_pool)._c_pool is not NULL)
+        assert (<Apr_Pool?>result_pool)._c_pool is not NULL
         r_pool = result_pool
     else:
         r_pool = _root_pool
     if scratch_pool is not None:
-        assert (    isinstance(scratch_pool, Apr_Pool)
-                and (<Apr_Pool>scratch_pool)._c_pool is not NULL)
+        assert (<Apr_Pool?>scratch_pool)._c_pool is not NULL
         ast = _c_.apr_pool_create(&_c_tmp_pool,
                                        (<Apr_Pool>scratch_pool)._c_pool)
     else:
-        ast = _c_.apr_pool_create(&_c_tmp_pool, _root_pool._c_pool)
+        _scratch_pool.clear()
+        ast = _c_.apr_pool_create(&_c_tmp_pool, _scratch_pool._c_pool)
     if ast:
-        raise MemoryError()
+        raise PoolError()
     try:
         IF SVN_API_VER >= (1, 6):
             serr = _c_.svn_stream_open_readonly(

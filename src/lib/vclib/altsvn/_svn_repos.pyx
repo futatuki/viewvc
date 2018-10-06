@@ -39,11 +39,6 @@ cdef class svn_fs_root_t(object):
         assert pool is None or isinstance(pool, _svn.Apr_Pool)
         self.pool = pool
         return self
-    def __dealloc__(self):
-        if self._c_ptr is not NULL:
-            _c_.svn_fs_close_root(self._c_ptr)
-            self.pool = None
-            self._c_ptr = NULL
 
 cdef class svn_fs_id_t(object):
     # cdef _c_.svn_fs_id_t * _c_ptr
@@ -64,24 +59,23 @@ def svn_fs_compare_ids(svn_fs_id_t a, svn_fs_id_t b):
 # allocation from global pool, and not releases its allocation until
 # the program terminates.
 def svn_fs_revision_root(svn_fs_t fs, _c_.svn_revnum_t rev, pool=None):
-    cdef _svn.Apr_Pool result_pool
+    cdef _svn.Apr_Pool r_pool
     cdef _c_.svn_fs_root_t * _c_root
     cdef _c_.svn_error_t * serr
     cdef _svn.Svn_error pyerr
     cdef svn_fs_root_t root
 
     if pool is not None:
-        assert (    isinstance(pool, _svn.Apr_Pool)
-                and (<_svn.Apr_Pool>pool)._c_pool is not NULL)
-        result_pool = pool
+        assert (<_svn.Apr_Pool?>pool)._c_pool is not NULL
+        r_pool = pool
     else:
-        result_pool = _svn._root_pool
+        r_pool = _svn._root_pool
     serr = _c_.svn_fs_revision_root(
-                            &_c_root, fs._c_ptr, rev, result_pool._c_pool)
+                            &_c_root, fs._c_ptr, rev, r_pool._c_pool)
     if serr is not NULL:
         pyerr = _svn.Svn_error().seterror(serr)
         raise _svn.SVNerr(pyerr)
-    root = svn_fs_root_t().set_fs_root(_c_root, result_pool)
+    root = svn_fs_root_t().set_fs_root(_c_root, r_pool)
     return root
 
 cdef object _apply_svn_api_root_path_arg1(
@@ -94,13 +88,13 @@ cdef object _apply_svn_api_root_path_arg1(
     cdef object rv
 
     if scratch_pool is not None:
-        assert (    isinstance(scratch_pool, _svn.Apr_Pool)
-                and (<_svn.Apr_Pool>scratch_pool)._c_pool is not NULL)
+        assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
         ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>scratch_pool)._c_pool)
     else:
-        ast = _c_.apr_pool_create(
-                        &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+        (<_svn.Apr_Pool>_svn._scratch_pool).clear()
+        ast = _c_.apr_pool_create(&_c_tmp_pool,
+                                  (<_svn.Apr_Pool>_svn._scratch_pool)._c_pool)
     if ast:
         raise _svn.PoolError()
     try:
@@ -248,80 +242,76 @@ IF SVN_API_VER < (1, 10):
 def svn_fs_paths_changed(
         svn_fs_root_t root, result_pool=None, scratch_pool=None):
     cdef _c_.apr_status_t ast
-    cdef _svn.Apr_Pool tmp_pool
     cdef _c_.svn_error_t * serr
     cdef _svn.Svn_error pyerr
     IF SVN_API_VER >= (1, 10):
+        cdef _svn.Apr_Pool tmp_pool
         cdef _c_.svn_fs_path_change_iterator_t * _c_iterator
         cdef _c_.svn_fs_path_change3_t * _c_change
     ELSE:
         cdef _svn.Apr_Pool r_pool
         cdef _svn.HashTrans pt_trans
 
-    if scratch_pool is not None:
-        assert (    isinstance(scratch_pool, _svn.Apr_Pool)
-                and (<_svn.Apr_Pool>scratch_pool)._c_pool is not NULL)
-        tmp_pool = _svn.Apr_Pool(scratch_pool)
-    else:
-        tmp_pool = _svn.Apr_Pool(_svn._root_pool)
+    IF SVN_API_VER >= (1, 10):
+        if scratch_pool is not None:
+            assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
+            tmp_pool = _svn.Apr_Pool(scratch_pool)
+        else:
+            (<_svn.Apr_Pool>_svn._scratch_pool).clear()
+            tmp_pool = _svn.Apr_Pool(_svn._scratch_pool)
 
-    try:
-        IF SVN_API_VER >= (1, 10):
-            change = {}
-            # If Suversion C API >= 1.10, our result doesn't content
-            # any object allocate from pool, so we can use tmp_pool safely
-            serr = _c_.svn_fs_paths_changed3(
+        change = {}
+        # If Suversion C API >= 1.10, our result doesn't content
+        # any object allocate from pool, so we can use tmp_pool safely
+        serr = _c_.svn_fs_paths_changed3(
                         &_c_iterator, root._c_ptr,
                         tmp_pool._c_pool, tmp_pool._c_pool)
-            if serr is not NULL:
-                pyerr = _svn.Svn_error().seterror(serr)
-                raise _svn.SVNerr(pyerr)
+        if serr is not NULL:
+            pyerr = _svn.Svn_error().seterror(serr)
+            raise _svn.SVNerr(pyerr)
+        serr = _c_.svn_fs_path_change_get(&_c_change, _c_iterator)
+        if serr is not NULL:
+            pyerr = _svn.Svn_error().seterror(serr)
+            raise _svn.SVNerr(pyerr)
+        while _c_change is not NULL:
+            copyfrom_path = (_c_change[0].copyfrom_path
+                                if _c_change[0].copyfrom_path is not NULL
+                                else None)
+            change[(_c_change[0].path.data)[:_c_change[0].data.len]] = \
+                FsPathChange(_c_change[0].change_kind,
+                             _c_change[0].node_kind,
+                             _c_change[0].text_mod,
+                             _c_change[0].prop_mod,
+                             _c_change[0].mergeinfo_mod,
+                             _c_change[0].copyfrom_known,
+                             copyfrom_path)
             serr = _c_.svn_fs_path_change_get(&_c_change, _c_iterator)
             if serr is not NULL:
                 pyerr = _svn.Svn_error().seterror(serr)
                 raise _svn.SVNerr(pyerr)
-            while _c_change is not NULL:
-                copyfrom_path = (_c_change[0].copyfrom_path
-                                    if _c_change[0].copyfrom_path is not NULL
-                                    else None)
-                change[(_c_change[0].path.data)[:_c_change[0].data.len]] = \
-                    FsPathChange(
-                        _c_change[0].change_kind,
-                        _c_change[0].node_kind,
-                        _c_change[0].text_mod,
-                        _c_change[0].prop_mod,
-                        _c_change[0].mergeinfo_mod,
-                        _c_change[0].copyfrom_known,
-                        copyfrom_path)
-                serr = _c_.svn_fs_path_change_get(
-                                        &_c_change, _c_iterator)
-                if serr is not NULL:
-                    pyerr = _svn.Svn_error().seterror(serr)
-                    raise _svn.SVNerr(pyerr)
+    ELSE:
+        # As svn_fs_id_t object shall be allocated from result_pool
+        # as a part of content of svn_fs_change2_t or svn_fs_change_t,
+        # we must let FsPathChangeTrans know where it is allocated from.
+        if result_pool is not None:
+            assert (<_svn.Apr_Pool?>result_pool)._c_pool is not NULL
+            r_pool = result_pool
+        else:
+            r_pool = _svn._root_pool
+        pt_trans = FsPathChangeTrans(r_pool, scratch_pool)
+        IF SVN_API_VER >= (1, 6):
+            serr = _c_.svn_fs_paths_changed2(
+                        <_c_.apr_hash_t **>(pt_trans.ptr_ref()),
+                        root._c_ptr, r_pool._c_pool)
         ELSE:
-            # As svn_fs_id_t object shall be allocated from result_pool
-            # as a part of content of svn_fs_change2_t or svn_fs_change_t,
-            # we must let FsPathChangeTrans know where it is allocated from.
-            if result_pool is not None:
-                assert (<_svn.Apr_Pool?>result_pool)._c_pool is not NULL
-                r_pool = result_pool
-            else:
-                r_pool = _svn._root_pool
-            pt_trans = FsPathChangeTrans(r_pool, scratch_pool)
-            IF SVN_API_VER >= (1, 6):
-                serr = _c_.svn_fs_paths_changed2(
-                            <_c_.apr_hash_t **>(pt_trans.ptr_ref()),
-                            root._c_ptr, r_pool._c_pool)
-            ELSE:
-                serr = _c_.svn_fs_paths_changed(
-                            <_c_.apr_hash_t **>(pt_trans.ptr_ref()),
-                            root._c_ptr, r_pool._c_pool)
-            if serr is not NULL:
-                pyerr = _svn.Svn_error().seterror(serr)
-                raise _svn.SVNerr(pyerr)
-            change = pt_trans.to_object()
-    finally:
-        del tmp_pool
+            serr = _c_.svn_fs_paths_changed(
+                        <_c_.apr_hash_t **>(pt_trans.ptr_ref()),
+                        root._c_ptr, r_pool._c_pool)
+        if serr is not NULL:
+            pyerr = _svn.Svn_error().seterror(serr)
+            raise _svn.SVNerr(pyerr)
+        change = pt_trans.to_object()
+
     return change
 
 
@@ -341,6 +331,7 @@ def svn_fs_check_path(
                 NodeKindTrans(),
                 root, path, scratch_pool)
 
+
 cdef class svn_fs_history_t(object):
     # cdef _c_.svn_fs_history_t * _c_ptr
     def __cinit__(self):
@@ -351,6 +342,7 @@ cdef class svn_fs_history_t(object):
         self.pool = pool
         self._c_ptr = history
         return self
+
 
 # warn: though result_pool is optional, ommiting to specify it causes
 # allocation from global pool, and not releases its allocation until
@@ -366,20 +358,20 @@ def svn_fs_node_history(
     cdef _svn.Svn_error pyerr
 
     if result_pool is not None:
-        assert (    isinstance(result_pool, _svn.Apr_Pool)
-                and (<_svn.Apr_Pool>result_pool)._c_pool is not NULL)
+        assert (<_svn.Apr_Pool>result_pool)._c_pool is not NULL
         r_pool = result_pool
     else:
         r_pool = _svn._root_pool
     IF SVN_API_VER >= (1, 10):
         if scratch_pool is not None:
-            assert (    isinstance(scratch_pool, _svn.Apr_Pool)
-                    and (<_svn.Apr_Pool>scratch_pool)._c_pool is not NULL)
+            assert (<_svn.Apr_Pool>scratch_pool)._c_pool is not NULL
             ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>scratch_pool)._c_pool)
         else:
+            (<_svn.Apr_Pool>_svn._scratch_pool).clear()
             ast = _c_.apr_pool_create(
-                        &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+                        &_c_tmp_pool,
+                        (<_svn.Apr_Pool>_svn._scratch_pool)._c_pool)
         if ast:
             raise _svn.PoolError()
     try:
@@ -416,21 +408,21 @@ def svn_fs_history_prev(
     cdef _svn.Svn_error pyerr
 
     if result_pool is not None:
-        assert (    isinstance(result_pool, _svn.Apr_Pool)
-                and (<_svn.Apr_Pool>result_pool)._c_pool is not NULL)
+        assert (<_svn.Apr_Pool>result_pool)._c_pool is not NULL
         r_pool = result_pool
     else:
         r_pool = _svn._root_pool
     _c_cross_copies = True if cross_copies else False
     IF SVN_API_VER >= (1, 10):
         if scratch_pool is not None:
-            assert (    isinstance(scratch_pool, _svn.Apr_Pool)
-                    and (<_svn.Apr_Pool>scratch_pool)._c_pool is not NULL)
+            assert (<_svn.Apr_Pool>scratch_pool)._c_pool is not NULL
             ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>scratch_pool)._c_pool)
         else:
+            (<_svn.Apr_Pool>_svn._scratch_pool).clear()
             ast = _c_.apr_pool_create(
-                        &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+                        &_c_tmp_pool,
+                        (<_svn.Apr_Pool>_svn._scratch_pool)._c_pool)
         if ast:
             raise _svn.PoolError()
     try:
@@ -462,13 +454,14 @@ def svn_fs_history_location(svn_fs_history_t history, scratch_pool=None):
     cdef _svn.Svn_error pyerr
 
     if scratch_pool is not None:
-        assert (    isinstance(scratch_pool, _svn.Apr_Pool)
-                and (<_svn.Apr_Pool>scratch_pool)._c_pool is not NULL)
+        assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
         ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>scratch_pool)._c_pool)
     else:
+        (<_svn.Apr_Pool>_svn._scratch_pool).clear()
         ast = _c_.apr_pool_create(
-                        &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+                        &_c_tmp_pool,
+                        (<_svn.Apr_Pool>_svn._scratch_pool)._c_pool)
     if ast:
         raise _svn.PoolError()
     try:
@@ -482,17 +475,20 @@ def svn_fs_history_location(svn_fs_history_t history, scratch_pool=None):
         _c_.apr_pool_destroy(_c_tmp_pool)
     return path, revision
 
+
 def svn_fs_is_dir(svn_fs_root_t root, const char * path, scratch_pool=None):
     return _apply_svn_api_root_path_arg1(
                 <svn_rv1_root_path_func_t>_c_.svn_fs_is_dir,
                 _svn.SvnBooleanTrans(),
                 root, path, scratch_pool)
 
+
 def svn_fs_is_file(svn_fs_root_t root, const char * path, scratch_pool=None):
     return _apply_svn_api_root_path_arg1(
                 <svn_rv1_root_path_func_t>_c_.svn_fs_is_file,
                 _svn.SvnBooleanTrans(),
                 root, path, scratch_pool)
+
 
 # warn: though result_pool is optional, ommiting to specify it causes
 # allocation from global pool, and not releases its allocation until
@@ -504,8 +500,7 @@ def svn_fs_node_id(svn_fs_root_t root, const char * path, result_pool=None):
     cdef _svn.Svn_error pyerr
 
     if result_pool is not None:
-        assert (    isinstance(result_pool, _svn.Apr_Pool)
-                and (<_svn.Apr_Pool>result_pool)._c_pool is not NULL)
+        assert (<_svn.Apr_Pool?>result_pool)._c_pool is not NULL
         r_pool = result_pool
     else:
         r_pool = _svn._root_pool
@@ -526,13 +521,14 @@ def svn_fs_node_created_rev(
     cdef _svn.Svn_error pyerr
 
     if scratch_pool is not None:
-        assert (    isinstance(scratch_pool, _svn.Apr_Pool)
-                and (<_svn.Apr_Pool>scratch_pool)._c_pool is not NULL)
+        assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
         ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>scratch_pool)._c_pool)
     else:
+        (<_svn.Apr_Pool>_svn._scratch_pool).clear()
         ast = _c_.apr_pool_create(
-                        &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+                        &_c_tmp_pool,
+                        (<_svn.Apr_Pool>_svn._scratch_pool)._c_pool)
     if ast:
         raise _svn.PoolError()
     try:
@@ -555,8 +551,10 @@ def svn_fs_node_proplist(
     return _apply_svn_api_root_path_arg1(
                 <svn_rv1_root_path_func_t>_c_.svn_fs_node_proplist,
                 _svn.HashTrans(_svn.CStringTransStr(),
-                               _svn.SvnStringTransStr()),
+                               _svn.SvnStringTransStr(),
+                               scratch_pool),
                 root, path, scratch_pool)
+
 
 def svn_fs_copied_from(
         svn_fs_root_t root, const char * path, scratch_pool=None):
@@ -568,13 +566,14 @@ def svn_fs_copied_from(
     cdef _svn.Svn_error pyerr
 
     if scratch_pool is not None:
-        assert (    isinstance(scratch_pool, _svn.Apr_Pool)
-                and (<_svn.Apr_Pool>scratch_pool)._c_pool is not NULL)
+        assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
         ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>scratch_pool)._c_pool)
     else:
+        _svn._scratch_pool.clear()
         ast = _c_.apr_pool_create(
-                        &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+                        &_c_tmp_pool,
+                        (<_svn.Apr_Pool>_svn._scratch_pool)._c_pool)
     if ast:
         raise _svn.PoolError()
     try:
@@ -628,7 +627,7 @@ def _listdir_helper(
 
 cdef class FileSizeTrans(_svn.TransPtr):
     cdef object to_object(self):
-        return <object>self._c_fsize
+        return <object>(self._c_fsize)
     cdef void set_filesize(self, _c_.svn_filesize_t _c_fsize):
         self._c_fsize = _c_fsize
     cdef void ** ptr_ref(self):
@@ -675,13 +674,14 @@ def svn_fs_youngest_rev(svn_fs_t fs, scratch_pool=None):
     cdef _svn.Svn_error pyerr
 
     if scratch_pool is not None:
-        assert (    isinstance(scratch_pool, _svn.Apr_Pool)
-                and (<_svn.Apr_Pool>scratch_pool)._c_pool is not NULL)
+        assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
         ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>scratch_pool)._c_pool)
     else:
+        (<_svn.Apr_Pool>_svn._scratch_pool).clear()
         ast = _c_.apr_pool_create(
-                        &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+                        &_c_tmp_pool,
+                        (<_svn.Apr_Pool>_svn._scratch_pool)._c_pool)
     if ast:
         raise _svn.PoolError()
     try:
@@ -693,6 +693,7 @@ def svn_fs_youngest_rev(svn_fs_t fs, scratch_pool=None):
     finally:
         _c_.apr_pool_destroy(_c_tmp_pool)
     return _c_rev
+
 
 # warn: this function doesn't provide full functionally
 # (not return a apr_hash object but a dict of which key is Python str object,
@@ -708,13 +709,14 @@ def svn_fs_revision_proplist(
     cdef _svn.HashTrans prop_trans
 
     if scratch_pool is not None:
-        assert (    isinstance(scratch_pool, _svn.Apr_Pool)
-                and (<_svn.Apr_Pool>scratch_pool)._c_pool is not NULL)
+        assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
         ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>scratch_pool)._c_pool)
     else:
+        (<_svn.Apr_Pool>_svn._scratch_pool).clear()
         ast = _c_.apr_pool_create(
-                        &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+                        &_c_tmp_pool,
+                        (<_svn.Apr_Pool>_svn._scratch_pool)._c_pool)
     if ast:
         raise _svn.PoolError()
     try:
@@ -736,6 +738,7 @@ def svn_fs_revision_proplist(
         _c_.apr_pool_destroy(_c_tmp_pool)
     return prop_trans.to_object()
 
+
 # This class placeholder of contents of svn_lock_t, enough to the extent
 # to use from svn_repos.py[x], but not provide full function.
 cdef class SvnLock(object):
@@ -750,6 +753,7 @@ cdef class SvnLock(object):
         self.is_dav_comment = is_dav_comment
         self.creation_date = creation_date
         self.expiration_date = expiration_date
+
 
 cdef object _svn_lock_to_object(const _c_.svn_lock_t * _c_lock):
     cdef bytes path
@@ -778,6 +782,7 @@ cdef object _svn_lock_to_object(const _c_.svn_lock_t * _c_lock):
         return SvnLock(path, token, owner, comment, is_dav_comment,
                        _c_lock[0].creation_date, _c_lock[0].expiration_date)
 
+
 # warn: this function doesn't provide full functionally
 # (not return a svn_lock_t object but pure Python SvnLock object.
 #  So it cannot be used for arguments for other svn wrapper APIs directly)
@@ -789,13 +794,14 @@ def svn_fs_get_lock(svn_fs_t fs, const char * path, scratch_pool=None):
     cdef _c_.svn_lock_t * _c_lock
 
     if scratch_pool is not None:
-        assert (    isinstance(scratch_pool, _svn.Apr_Pool)
-                and (<_svn.Apr_Pool>scratch_pool)._c_pool is not NULL)
+        assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
         ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>scratch_pool)._c_pool)
     else:
+        (<_svn.Apr_Pool>_svn._scratch_pool).clear()
         ast = _c_.apr_pool_create(
-                        &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+                        &_c_tmp_pool,
+                        (<_svn.Apr_Pool>_svn._scratch_pool)._c_pool)
     if ast:
         raise _svn.PoolError()
     try:
@@ -830,20 +836,20 @@ def svn_repos_open(const char * path, result_pool=None, scratch_pool=None):
     cdef _svn.Svn_error pyerr
 
     if result_pool is not None:
-        assert (    isinstance(result_pool, _svn.Apr_Pool)
-                and (<_svn.Apr_Pool>result_pool)._c_pool is not NULL)
+        assert (<_svn.Apr_Pool?>result_pool)._c_pool is not NULL
         r_pool = result_pool
     else:
         r_pool = _svn._root_pool
     IF SVN_API_VER >= (1, 9):
         if scratch_pool is not None:
-            assert (    isinstance(scratch_pool, _svn.Apr_Pool)
-                    and (<_svn.Apr_Pool>scratch_pool)._c_pool is not NULL)
+            assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
             ast = _c_.apr_pool_create(
                         &_c_tmp_pool, (<_svn.Apr_Pool>scratch_pool)._c_pool)
         else:
+            (<_svn.Apr_Pool?>_svn._scratch_pool).clear()
             ast = _c_.apr_pool_create(
-                        &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+                        &_c_tmp_pool,
+                        (<_svn.Apr_Pool>_svn._scratch_pool)._c_pool)
         if ast:
             raise _svn.PoolError()
     try:
@@ -925,6 +931,7 @@ cdef _c_.apr_array_header_t * _make_revnum_array(
         (<_c_.svn_revnum_t *>(_c_.apr_array_push(_c_arrayptr)))[0] = rev
     return _c_arrayptr
 
+
 cdef class SvnRevnumPtrTrans(_svn.TransPtr):
     cdef _c_.svn_revnum_t * _c_revptr
     cdef object to_object(self):
@@ -937,7 +944,7 @@ cdef class SvnRevnumPtrTrans(_svn.TransPtr):
 def svn_repos_trace_node_locations(
         svn_fs_t fs, const char * fs_path, _c_.svn_revnum_t peg_revision,
         object location_revisions, object authz_read_func,
-        object authz_read_baton, object pool=None):
+        object authz_read_baton, object scratch_pool=None):
     cdef _c_.apr_status_t ast
     cdef _svn.Apr_Pool tmp_pool
     cdef _c_.apr_array_header_t * _c_location_rivisions
@@ -950,12 +957,11 @@ def svn_repos_trace_node_locations(
     cdef object locations
 
     assert callable(authz_read_func)
-    if pool is not None:
-        assert (    isinstance(pool, _svn.Apr_Pool)
-                and (<_svn.Apr_Pool>pool)._c_pool is not NULL)
-        tmp_pool = _svn.Apr_Pool(pool)
+    if scratch_pool is not None:
+        assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
+        tmp_pool = _svn.Apr_Pool(scratch_pool)
     else:
-        tmp_pool = _svn.Apr_Pool(_svn._root_pool)
+        tmp_pool = _svn.Apr_Pool(_svn._scratch_pool)
     try:
         _c_location_revisions = _make_revnum_array(location_revisions,
                                                    tmp_pool._c_pool)
@@ -975,6 +981,7 @@ def svn_repos_trace_node_locations(
     finally:
         del tmp_pool
     return locations
+
 
 # vclib custom revinfo helper
 # copy from subversion/bindings/swig/python/svn/repos.py, class ChangedPath,
@@ -1047,6 +1054,7 @@ cdef const char * _c_make_base_path(
     pivot[b_len] = <char>0
     return <const char *>new_base
 
+
 cdef class _get_changed_paths_EditBaton(object):
     def __init__(self, svn_fs_t fs_ptr, svn_fs_root_t root):
         self.changes = {}
@@ -1057,18 +1065,11 @@ cdef class _get_changed_paths_EditBaton(object):
         self.base_rev = (
                 _c_.svn_fs_revision_root_revision(root._c_ptr) - 1)
         assert self.base_rev >= 0
-    # copy from subversion/bindings/swig/python/svn/repos.py,
-    # ChangeCollector._make_base_path(), with modification for Python 3
-    # aware. we treat all path strings as bytes.
-    def _make_base_path(self, parent_path, path):
-        idx = path.rfind(b'/')
-        if parent_path:
-            parent_path = parent_path + b'/'
-        if idx == -1:
-            return parent_path + path
-        return parent_path + path[idx+1:]
+        # self._c_p_pool is not initialized here, because this is
+        # C pointer which cannot be passed through Pure Python function
     def _getroot(self, rev):
         return self.fs_ptr._getroot(rev)
+
 
 # custom call back used by get_changed_paths(), derived from
 # subversion/bindings/swig/python/svn/repos.py, class ChangedCollector,
@@ -1404,12 +1405,15 @@ def _get_changed_paths_helper(
         ast = _c_.apr_pool_create(
                     &_c_p_pool, (<_svn.Apr_Pool>pool)._c_pool)
     else:
+        (<_svn.Apr_Pool>_svn._scratch_pool).clear()
         ast = _c_.apr_pool_create(
-                    &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+                    &_c_tmp_pool,
+                    (<_svn.Apr_Pool>_svn._scratch_pool)._c_pool)
         if ast:
             raise _svn.PoolError()
         ast = _c_.apr_pool_create(
-                    &_c_p_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+                    &_c_p_pool,
+                    (<_svn.Apr_Pool>_svn._scratch_pool)._c_pool)
     if ast:
         _c_.apr_pool_destroy(_c_tmp_pool)
         raise _svn.PoolError()
@@ -1479,7 +1483,10 @@ cdef _c_.svn_error_t * _cb_collect_node_history(
     cdef _c_.svn_revnum_t copyfrom_rev
     cdef bytes copyfrom_path
     cdef _c_.svn_error_t * serr
+    cdef _svn.Apr_Pool wrap_pool
     btn = <NodeHistory>baton
+    wrap_pool = _svn.Apr_Pool.__new__(_svn.Apr_Pool,None)
+    wrap_pool.set_pool(pool)
     if btn.oldest_rev == _c_.SVN_INVALID_REVNUM:
         btn.oldest_rev = revision
     else:
@@ -1487,7 +1494,7 @@ cdef _c_.svn_error_t * _cb_collect_node_history(
     path = <bytes>_c_path
     if btn.show_all_logs == _c_.FALSE:
         rev_root = btn.fs_ptr._getroot(revision)
-        changed_paths = svn_fs_paths_changed(rev_root)
+        changed_paths = svn_fs_paths_changed(rev_root, wrap_pool)
         if path not in changed_paths:
             # Look for a copied parent
             test_path = path
@@ -1497,7 +1504,7 @@ cdef _c_.svn_error_t * _cb_collect_node_history(
                 test_path = test_path[0:off]
                 if test_path in changed_paths:
                     copyfrom_rev, copyfrom_path = \
-                            svn_fs_copied_from(rev_root, test_path)
+                            svn_fs_copied_from(rev_root, test_path, wrap_pool)
                     if copyfrom_rev >= 0 and copyfrom_path:
                         found = _c_.TRUE
                         break
@@ -1520,7 +1527,7 @@ def _get_history_helper(
             svn_fs_t fs_ptr, const char * path,
             _c_.svn_revnum_t rev, _c_.svn_boolean_t cross_copies,
             _c_.svn_boolean_t show_all_logs,
-            _c_.svn_revnum_t limit, pool = None):
+            _c_.svn_revnum_t limit, pool=None):
     cdef _c_.apr_status_t ast
     cdef _c_.apr_pool_t * _c_tmp_pool
     cdef _c_.svn_error_t * serr
@@ -1528,12 +1535,14 @@ def _get_history_helper(
 
     nhbtn = NodeHistory(fs_ptr, show_all_logs, limit)
     if pool is not None:
-        assert ((<_svn.Apr_Pool?>pool)._c_pool is not NULL)
+        assert (<_svn.Apr_Pool?>pool)._c_pool is not NULL
         ast = _c_.apr_pool_create(
                     &_c_tmp_pool, (<_svn.Apr_Pool>pool)._c_pool)
     else:
+        (<_svn.Apr_Pool>_svn._scratch_pool).clear()
         ast = _c_.apr_pool_create(
-                    &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+                    &_c_tmp_pool,
+                    (<_svn.Apr_Pool>_svn._scratch_pool)._c_pool)
     if ast:
         raise _svn.PoolError()
     try:
@@ -1719,7 +1728,7 @@ ELSE:
 def _get_annotated_source(
         const char * path_or_url, object rev, object oldest_rev,
         object blame_func, object config_dir, object include_text=False,
-        object pool=None):
+        object scratch_pool=None):
     cdef char * _c_config_dir
     cdef _svn.svn_opt_revision_t opt_rev
     cdef _svn.svn_opt_revision_t opt_oldest_rev
@@ -1741,13 +1750,15 @@ def _get_annotated_source(
                                                   oldest_rev)
     assert callable(blame_func)
     _c_config_dir = <char *>config_dir if config_dir else NULL
-    if pool is not None:
-        assert (<_svn.Apr_Pool?>pool)._c_pool is not NULL
+    if scratch_pool is not None:
+        assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
         ast = _c_.apr_pool_create(
-                        &_c_tmp_pool, (<_svn.Apr_Pool>pool)._c_pool)
+                        &_c_tmp_pool, (<_svn.Apr_Pool>scratch_pool)._c_pool)
     else:
+        (<_svn.Apr_Pool>_svn._scratch_pool).clear()
         ast = _c_.apr_pool_create(
-                        &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+                        &_c_tmp_pool,
+                        (<_svn.Apr_Pool?>_svn._scratch_pool)._c_pool)
     if ast:
         raise _svn.PoolError()
     try:

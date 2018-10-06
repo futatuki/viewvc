@@ -19,6 +19,7 @@ cdef class Apr_Pool(object):
     cdef inline void * palloc(self, apr.apr_size_t size)
 
 cpdef Apr_Pool _root_pool
+cpdef Apr_Pool _scratch_pool
 
 cdef class Svn_error(object):
     cdef svn_types.svn_error_t * _c_error
