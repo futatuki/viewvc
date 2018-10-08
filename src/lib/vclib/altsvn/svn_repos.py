@@ -13,6 +13,7 @@
 "Version Control lib driver for locally accessible Subversion repositories"
 
 import vclib
+import os
 import os.path
 import io
 import tempfile
@@ -121,21 +122,21 @@ def _get_last_history_rev(fsroot, path, scratch_pool=None):
 
 def temp_checkout(svnrepos, path, rev, scratch_pool=None):
   """Check out file revision to temporary file"""
-  temp = tempfile.mktemp()
-  fp = open(temp, 'wb')
+  fp, temp = tempfile.mkstemp()
   try:
     root = svnrepos._getroot(rev)
     stream = _svn_repos.svn_fs_file_contents(root, path, scratch_pool)
     try:
       while 1:
-        chunk = _svn.svn_stream_read_full(stream, _svn.SVN_STREAM_CHUNK_SIZE)
+        chunk, len = _svn.svn_stream_read_full(
+                                stream, _svn.SVN_STREAM_CHUNK_SIZE)
         if not chunk:
           break
-        fp.write(chunk)
+        os.write(fp, chunk)
     finally:
       _svn.svn_stream_close(stream)
   finally:
-    fp.close()
+    os.close(fp)
   return temp
 
 class FileContentsPipe:
@@ -152,7 +153,7 @@ class FileContentsPipe:
         buffer = io.BytesIO()
         try:
           while 1:
-            hunk = _svn.svn_stream_read_full(self._stream, 8192)
+            hunk, len = _svn.svn_stream_read_full(self._stream, 8192)
             if not hunk:
               break
             buffer.write(hunk)
@@ -161,7 +162,7 @@ class FileContentsPipe:
           buffer.close()
 
       else:
-        chunk = _svn.svn_stream_read_full(self._stream, len)
+        chunk, len = _svn.svn_stream_read_full(self._stream, len)
     if not chunk:
       self._eof = 1
     return chunk

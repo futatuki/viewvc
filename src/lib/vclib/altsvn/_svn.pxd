@@ -1,4 +1,5 @@
 include "_py_ver.pxi"
+include "_svn_api_ver.pxi"
 from apr_1 cimport apr
 from apr_1 cimport apr_errno
 from apr_1 cimport apr_general
@@ -104,3 +105,47 @@ cdef class SvnBooleanTrans(TransPtr):
     cdef void set_c_bool(self, svn_types.svn_boolean_t _c_bool)
     cdef void ** ptr_ref(self)
 
+
+cdef class _py_stream_baton(object):
+    cdef object baton
+    cdef object read_fn
+    IF SVN_API_VER >= (1, 9):
+        cdef object read_full_fn
+    IF SVN_API_VER >= (1, 7):
+        cdef object skip_fn
+    cdef object write_fn
+    cdef object close_fn
+    IF SVN_API_VER >= (1, 7):
+        cdef object mark_fn
+        cdef object seek_fn
+    IF SVN_API_VER >= (1, 9):
+        cdef object data_available_fn
+    IF SVN_API_VER >= (1, 10):
+        cdef object readline_fn
+    IF SVN_API_VER >= (1.7):
+        # placeholder to hold marks for mark/seek operation
+        # we can use Python object allocation, so we use
+        # svn_stream_mark_t as integer key of marks, and hold actual mark
+        # as value of marks dict.
+        cdef dict marks
+        # next_mark == len(marks)+1
+        cdef int next_mark
+
+cdef class CharPtrWriteBuffer:
+    cdef char * _c_buf
+    cdef Py_ssize_t len
+    cdef Py_ssize_t shape[1]
+    cdef Py_ssize_t strides[1]
+    cdef CharPtrWriteBuffer set_buffer(
+            CharPtrWriteBuffer self, char * _c_buf, Py_ssize_t len)
+
+cdef class CharPtrReadBuffer:
+    cdef const char * _c_buf
+    cdef Py_ssize_t len
+    cdef Py_ssize_t shape[1]
+    cdef Py_ssize_t strides[1]
+    cdef CharPtrReadBuffer set_buffer(
+            CharPtrReadBuffer self, const char * _c_buf, Py_ssize_t len)
+
+cdef class py_stream(svn_stream_t):
+    cdef _py_stream_baton baton

@@ -10,3 +10,7 @@ cdef extern from "svn_string.h" nogil:
         char * data
         apr_size_t len
         apr_size_t blocksize
+    svn_stringbuf_t * svn_stringbuf_create(
+            const char * cstring, apr_pool_t * pool)
+    svn_stringbuf_t * svn_stringbuf_ncreate(
+            const char * bytes, apr_size_t size, apr_pool_t *pool)
