@@ -35,9 +35,9 @@ class pre_build(Command):
         if os.path.lexists(pxi_file):
             os.remove(pxi_file)
         f = open(pxi_file, 'w')
-        f.write('DEF PY_VERSION = ' + str((sys.version_info.major,
-                                           sys.version_info.minor,
-                                           sys.version_info.micro))
+        f.write('DEF PY_VERSION = ' + str((sys.version_info[0],
+                                           sys.version_info[1],
+                                           sys.version_info[2]))
                                     + '\n')
         f.close()
         return
@@ -68,6 +68,8 @@ ext_modules = [
               ['vclib/altsvn/_svn.pyx'],
               cython_include_dirs=[cython_include_dir],
               cython_gdb=True,
+              # Whmm.. compiler specific option ...
+              #extra_compile_args=["-Wno-deprecated-declarations"],
               include_dirs=["/usr/local/include/apr-1",
                             "/usr/local/include/subversion-1"],
               library_dirs=["/usr/local/lib"],
@@ -76,6 +78,8 @@ ext_modules = [
               ['vclib/altsvn/_svn_repos.pyx'],
               cython_include_dirs=[cython_include_dir],
               cython_gdb=True,
+              # Whmm.. compiler specific option ...
+              #extra_compile_args=["-Wno-deprecated-declarations"],
               include_dirs=["/usr/local/include/apr-1",
                             "/usr/local/include/subversion-1"],
               library_dirs=["/usr/local/lib"],
@@ -85,6 +89,8 @@ ext_modules = [
               ['vclib/altsvn/_svn_ra.pyx'],
               cython_include_dirs=[cython_include_dir],
               cython_gdb=True,
+              # Whmm.. compiler specific option ...
+              #extra_compile_args=["-Wno-deprecated-declarations"],
               include_dirs=["/usr/local/include/apr-1",
                             "/usr/local/include/subversion-1"],
               library_dirs=["/usr/local/lib"],
