@@ -108,6 +108,20 @@ cdef class SvnBooleanTrans(TransPtr):
 
 cdef class _py_stream_baton(object):
     cdef object baton
+    IF SVN_API_VER >= (1.7):
+        # placeholder to hold marks for mark/seek operation
+        # we can use Python object allocation, so we use
+        # svn_stream_mark_t as integer key of marks, and hold actual mark
+        # as value of marks dict.
+        cdef dict marks
+        # next_mark == len(marks)+1
+        cdef int next_mark
+
+cdef class _py_io_stream_baton(_py_stream_baton):
+    cdef readonly object fo
+    cdef public object is_eof
+
+cdef class _py_generic_stream_baton(_py_stream_baton):
     cdef object read_fn
     IF SVN_API_VER >= (1, 9):
         cdef object read_full_fn
@@ -122,14 +136,6 @@ cdef class _py_stream_baton(object):
         cdef object data_available_fn
     IF SVN_API_VER >= (1, 10):
         cdef object readline_fn
-    IF SVN_API_VER >= (1.7):
-        # placeholder to hold marks for mark/seek operation
-        # we can use Python object allocation, so we use
-        # svn_stream_mark_t as integer key of marks, and hold actual mark
-        # as value of marks dict.
-        cdef dict marks
-        # next_mark == len(marks)+1
-        cdef int next_mark
 
 cdef class CharPtrWriteBuffer:
     cdef char * _c_buf
@@ -146,6 +152,9 @@ cdef class CharPtrReadBuffer:
     cdef Py_ssize_t strides[1]
     cdef CharPtrReadBuffer set_buffer(
             CharPtrReadBuffer self, const char * _c_buf, Py_ssize_t len)
+
+cdef class py_io_stream(svn_stream_t):
+    cdef _py_io_stream_baton baton
 
 cdef class py_stream(svn_stream_t):
     cdef _py_stream_baton baton

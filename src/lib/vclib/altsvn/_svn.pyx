@@ -10,6 +10,8 @@ IF SVN_API_VER >= (1, 6):
 
 import os
 import os.path
+import io
+import errno
 IF SVN_API_VER < (1, 7):
     import urllib
 
@@ -586,7 +588,9 @@ cdef class svn_stream_t(object):
             self.pool = None
             self._c_ptr = NULL
 
+
 cdef char _streambuf[_c_.SVN_STREAM_CHUNK_SIZE]
+
 
 def svn_stream_read_full(svn_stream_t stream, len):
     cdef _c_.apr_size_t _c_len
@@ -618,8 +622,133 @@ def svn_stream_read_full(svn_stream_t stream, len):
         PyMem_Free(_c_buf)
     return buf, _c_len
 
+
+IF SVN_API_VER >= (1, 9):
+    def svn_stream_read2(svn_stream_t stream, len):
+        cdef _c_.apr_size_t _c_len
+        cdef char * _c_buf
+        cdef _c_.svn_error_t * serr
+        cdef Svn_error pyerr
+        # Note: this function read stream as bytes stream without decode
+        assert len > 0
+        assert stream._c_ptr is not NULL
+        if len > _c_.SVN_STREAM_CHUNK_SIZE:
+            _c_buf = <char *>PyMem_Malloc(len)
+        else:
+            _c_buf = _streambuf
+        _c_len = len
+        IF SVN_API_VER >= (1, 9):
+            serr = _c_.svn_stream_read_full(stream._c_ptr, _c_buf, &_c_len)
+        ELSE:
+            serr = _c_.svn_stream_read(stream._c_ptr, _c_buf, &_c_len)
+        if serr is not NULL:
+            if _c_buf != _streambuf:
+                PyMem_Free(_c_buf)
+            pyerr = Svn_error().seterror(serr)
+            raise SVNerr(pyerr)
+        if _c_len > 0:
+            buf = (<bytes>_c_buf)[0:_c_len]
+        else:
+            buf = b''
+        if _c_buf != _streambuf:
+            PyMem_Free(_c_buf)
+        return buf, _c_len
+
+
+IF SVN_API_VER >= (1, 7):
+    def svn_stream_skip(svn_stream_t stream, len):
+        cdef _c_.apr_size_t _c_len
+        cdef _c_.svn_error_t * serr
+        cdef Svn_error pyerr
+        # Note: this function read stream as bytes stream without decode
+        assert len > 0
+        assert stream._c_ptr is not NULL
+        _c_len = len
+        serr = _c_.svn_stream_skip(stream._c_ptr, _c_len)
+        if serr is not NULL:
+            pyerr = Svn_error().seterror(serr)
+            raise SVNerr(pyerr)
+        return
+
+
+def svn_stream_write(svn_stream_t stream, const char * data, len):
+    cdef _c_.apr_size_t _c_len
+    cdef char * _c_buf
+    cdef _c_.svn_error_t * serr
+    cdef Svn_error pyerr
+    # Note: this function write to stream as bytes without encode/decode
+    assert len > 0
+    assert stream._c_ptr is not NULL
+    _c_len = len
+    serr = _c_.svn_stream_write(stream._c_ptr, data, &_c_len)
+    if serr is not NULL:
+        pyerr = Svn_error().seterror(serr)
+        raise SVNerr(pyerr)
+    return _c_len
+
+
 def svn_stream_close(svn_stream_t stream):
     stream.close()
+
+
+IF SVN_API_VER >= (1, 7):
+    cdef class svn_stream_mark_t(object):
+        cdef _c_.svn_stream_mark_t * _c_mark
+        def __cinit__(self):
+            self._c_mark = NULL
+        cdef inline svn_stream_mark_t set_mark(
+                svn_stream_mark_t self, _c_.svn_stream_mark_t * _c_mark):
+            self._c_mark = _c_mark
+            return self
+        cdef inline _c_.svn_stream_mark_t * get_mark(svn_stream_mark_t self):
+            return self._c_mark
+
+
+    def svn_stream_mark(svn_stream_t stream, object pool):
+        cdef _c_.svn_error_t * serr
+        cdef _c_.svn_stream_mark_t * _c_mark
+        cdef svn_stream_mark_t mark
+        cdef _c_.apr_pool_t * _c_pool
+        cdef Svn_error pyerr
+        if pool is not None:
+            assert (<Apr_Pool?>pool)._c_pool is not NULL
+            _c_pool = (<Apr_Pool>pool)._c_pool
+        else:
+            _c_pool = _root_pool._c_pool
+        serr = _c_.svn_stream_mark(stream._c_ptr, &_c_mark, _c_pool)
+        if serr is not NULL:
+            pyerr = Svn_error().seterror(serr)
+            raise SVNerr(pyerr)
+        mark =  svn_stream_mark_t().set_mark(_c_mark)
+        return mark
+
+
+    def svn_stream_seek(svn_stream_t stream, object mark):
+        cdef _c_.svn_error_t * serr
+        cdef _c_.svn_stream_mark_t * _c_mark
+        cdef Svn_error pyerr
+        if mark is None:
+            _c_mark = NULL
+        else:
+            _c_mark = (<svn_stream_mark_t?>mark)._c_mark
+        serr = _c_.svn_stream_seek(stream._c_ptr, _c_mark)
+        if serr is not NULL:
+            pyerr = Svn_error().seterror(serr)
+            raise SVNerr(pyerr)
+        return
+
+
+IF SVN_API_VER >= (1, 9):
+    def svn_stream_data_available(svn_stream_t stream):
+        cdef _c_.svn_error_t * serr
+        cdef _c_.svn_boolean_t _c_avail
+        cdef Svn_error pyerr
+        serr = _c_.svn_stream_data_available(stream._c_ptr, &_c_avail)
+        if serr is not NULL:
+            pyerr = Svn_error().seterror(serr)
+            raise SVNerr(pyerr)
+        return True if _c_avail != _c_.FALSE else False
+
 
 def svn_stream_readline(
         svn_stream_t stream, const char *eol, scratch_pool=None):
@@ -653,6 +782,7 @@ def svn_stream_readline(
     finally:
         _c_.apr_pool_destroy(_c_tmp_pool)
     return bufstr, eof
+
 
 # baton wrapper ... call back function helper
 cdef class CbContainer(object):
@@ -818,6 +948,7 @@ cdef class SvnBooleanTrans(TransPtr):
     cdef void ** ptr_ref(self):
         return <void **>&(self._c_bool)
 
+
 # for test, not used by vclib modules
 IF SVN_API_VER < (1, 4):
     # from ^/subversion/tags/1.3.0/subversion/libsvn_subr/stream.c,
@@ -884,28 +1015,8 @@ def svn_stream_open_readonly(
         _c_.apr_pool_destroy(_c_tmp_pool)
     return stream
 
-# wrapper to create stream from Python I/O
-# baton for python stream wrapper (like svn_stream_t :))
-cdef class _py_stream_baton(object):
-    def __cinit__(self):
-        self.read_fn = None
-        IF SVN_API_VER >= (1, 9):
-            self.read_full_fn = None
-        IF SVN_API_VER >= (1, 7):
-            self.skip_fn = None
-        self.write_fn = None
-        self.close_fn = None
-        IF SVN_API_VER >= (1, 7):
-            self.mark_fn = None
-            self.seek_fn = None
-        IF SVN_API_VER >= (1, 9):
-            self.data_available_fn = None
-        IF SVN_API_VER >= (1, 10):
-            self.readline_fn = None
-        IF SVN_API_VER >= (1, 7):
-            self.marks = {}
-            self.next_mark = 1
 
+# least class to implement of buffer protocol for Python I/O
 cdef class CharPtrWriteBuffer:
     cdef CharPtrWriteBuffer set_buffer(
             CharPtrWriteBuffer self, char * _c_buf, Py_ssize_t len):
@@ -927,6 +1038,7 @@ cdef class CharPtrWriteBuffer:
         buffer.internal = NULL
     def __releasebuffer__(self, Py_buffer * buffer):
         pass
+
 
 cdef class CharPtrReadBuffer:
     cdef CharPtrReadBuffer set_buffer(
@@ -952,16 +1064,474 @@ cdef class CharPtrReadBuffer:
     def __releasebuffer__(self, Py_buffer * buffer):
         pass
 
+
+# baton for python stream wrapper
+cdef class _py_stream_baton(object):
+    def __cinit__(self):
+        self.baton = None
+        IF SVN_API_VER >= (1, 7):
+            self.marks = {}
+            self.next_mark = 1
+
+# an (least) implementation of svn_stream_t for Python I/O
+# baton
+cdef class _py_io_stream_baton(object):
+    def __cinit__(self, object fo):
+        self.fo = None
+        self.is_eof = True
+    def __init__(self, fo):
+        self.fo = fo
+
+# callbacks
+cdef _c_.svn_error_t * _py_io_read_fn(
+        void * _c_baton, char * _c_buffer, _c_.apr_size_t * _c_len) with gil:
+    cdef _py_io_stream_baton btn
+    cdef _c_.svn_error_t * _c_err
+    cdef _c_.apr_status_t ast
+    cdef char * emsg
+    cdef object err
+    cdef CharPtrWriteBuffer buf
+    cdef object len
+
+    btn = <_py_io_stream_baton>_c_baton
+    _c_err = NULL
+    if btn.baton.is_eof:
+        _c_len[0] = 0
+        return _c_err
+    if _c_len[0] == 0:
+        return _c_err
+    # wrap the buffer pointer into buffer object
+    buf = CharPtrWriteBuffer.__new__(CharPtrWriteBuffer)
+    buf.set_buffer(_c_buffer, _c_len[0])
+    try:
+        len = btn.baton.fo.readinto(buf)
+        if len is None:
+            _c_len[0] = 0
+            ast = _c_.APR_EAGAIN
+            _c_err = _c_.svn_error_create(ast, NULL, NULL)
+        else:
+            if len == 0:
+                btn.baton.is_eof = True
+            _c_len[0] = len
+    except io.UnsuportedOperation as err:
+        IF SVN_API_VER >= (1, 9):
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_STREAM_NOT_SUPPORTED, NULL, NULL)
+        ELSE:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_UNSUPPORTED_FEATURE, NULL, NULL)
+    except io.BlockingIOError as err:
+        _c_len[0] = err.characters_written
+        emsg = NULL
+        if err.errno in (errno.EAGAIN, errno.EWOULDBLOCK):
+            ast = _c_.APR_EAGAIN
+        elif err.errno in (errno.EALREADY, errno.EINPROGRESS):
+            ast = _c_.APR_EINPROGRESS
+        else:
+            # unknown ...
+            ast = _c_.APR_EGENERAL
+            emsg = b'Unknown BlockingIOError on reading buffer'
+        _c_err = _c_.svn_error_create(ast, NULL, emsg)
+    except KeyboardInterrupt as err:
+        _c_err = _c_.svn_error_create(
+                    _c_.SVN_ERR_CANCELLED, NULL, str(err))
+    except Exception as err:
+        _c_err = _c_.svn_error_create(
+                    _c_.SVN_ERR_SWIG_PY_EXCEPTION_SET, NULL,
+                    ("Python exception has been set while reading buffer: %s"
+                      % str(err)))
+    finally:
+        del buf
+    return _c_err
+
+
+cdef _c_.svn_error_t * _py_io_read_full_fn(
+        void * _c_baton, char * _c_buffer, _c_.apr_size_t * _c_len) with gil:
+    cdef _py_io_stream_baton btn
+    cdef CharPtrWriteBuffer buf
+    cdef object len
+    cdef char * _c_bp
+    cdef _c_.apr_size_t rest
+    cdef _c_.svn_error_t * _c_err
+    cdef object err
+
+    btn = <_py_io_stream_baton>_c_baton
+    if btn.baton.is_buffered:
+        return _py_io_read_fn(_c_baton, _c_buffer, _c_len)
+    _c_err = NULL
+    if btn.baton.is_eof:
+        _c_len[0] = 0
+        return _c_err
+
+    _c_bp = _c_buffer
+    rest = _c_len[0]
+    buf = CharPtrWriteBuffer.__new__(CharPtrWriteBuffer)
+    buf.set_buffer(_c_bp, rest)
+    try:
+        len = btn.baton.fo.readinto(buf)
+        if len is None:
+            # no bytes are available in blocking mode
+            len = 0
+        elif len == 0:
+            btn.baton.is_eof = True
+            _c_len[0] = 0
+            return _c_err
+        elif len == rest:
+            return _c_err
+    except io.BlockingIOError as err:
+        # blocking while reading: ignore and retry
+        len = err.characters_written
+    except io.UnsupportedOperation:
+        IF SVN_API_VER >= (1, 9):
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_STREAM_NOT_SUPPORTED, NULL, NULL)
+        ELSE:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_UNSUPPORTED_FEATURE, NULL, NULL)
+        _c_len[0] = 0
+        del buf
+        return _c_err
+    except KeyboardInterrupt as err:
+        _c_len[0] = err.characters_written
+        _c_err = _c_.svn_error_create(
+                    _c_.SVN_ERR_CANCELLED, NULL, str(err))
+        del buf
+        return _c_err
+    except Exception as err:
+        _c_len[0] = <_c_.apr_size_t>getattr(err, 'characters_written', 0)
+        _c_err = _c_.svn_error_create(
+                    _c_.SVN_ERR_SWIG_PY_EXCEPTION_SET, NULL,
+                ("Python exception has been set while reading buffer: %s"
+              % str(err)))
+        del buf
+        return _c_err
+    rest -= len
+    _c_bp += len
+    buf.set_buffer(_c_bp, rest)
+    while True:
+        try:
+            len = btn.baton.fo.readinto(buf)
+            if len is None:
+                continue
+            elif len == 0:
+                btn.baton.is_eof = True
+                _c_len[0] -= rest
+                break
+            elif len == rest:
+                break
+        except io.BlockingIOError as err:
+            len = err.characters_written
+            if len == rest:
+                # may not happen: blocked but already read specified bytes.
+                break
+        except KeyboardInterrupt as err:
+            len = err.characters_written
+            rest -= len
+            _c_len[0] -= rest
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_CANCELLED, NULL, str(err))
+            break
+        except Exception as err:
+            len = <_c_.apr_size_t>getattr(err, 'characters_written', 0)
+            rest -= len
+            _c_len[0] -= rest
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_SWIG_PY_EXCEPTION_SET, NULL,
+                    ("Python exception has been set while reading buffer: %s"
+                  % str(err)))
+            break
+        # end of try block
+        rest -= len
+        _c_bp += len
+        buf.set_buffer(_c_bp, rest)
+    # end of loop
+
+    del buf
+    return _c_err
+
+
+IF SVN_API_VER >= (1, 7):
+    cdef _c_.svn_error_t * _py_io_skip_with_seek_fn(
+                void * _c_baton, _c_.apr_size_t len) with gil:
+        cdef _py_io_stream_baton btn
+        cdef _c_.svn_error_t * _c_err
+        cdef object err
+
+        btn = <_py_io_stream_baton>_c_baton
+        _c_err = NULL
+        try:
+            btn.baton.fo.seek(len, 1)
+        except io.UnsupportedOperation:
+            # fall back to without seek version
+            return _py_io_skip_without_seek_fn(_c_baton, len)
+        except Exception as err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_SWIG_PY_EXCEPTION_SET, NULL,
+                        ("Python exception has been set in stream_skip: %s"
+                          % str(err)))
+        return _c_err
+
+
+    cdef _c_.svn_error_t * _py_io_skip_without_seek_fn(
+                void * _c_baton, _c_.apr_size_t len) with gil:
+        cdef _py_io_stream_baton btn
+        cdef _c_.apr_size_t rest
+        cdef _c_.apr_size_t rlen
+        cdef object rbytes
+        cdef _c_.svn_error_t * _c_err
+        cdef object err
+
+        btn = <_py_io_stream_baton>_c_baton
+        _c_err = NULL
+        rest = len
+        while rest > 0:
+            try:
+                rbytes, rlen = btn.baton.fo.read(rest)
+            except io.UnsupportedOperation:
+                IF SVN_API_VER >= (1, 9):
+                    _c_err = _c_.svn_error_create(
+                                _c_.SVN_ERR_STREAM_NOT_SUPPORTED, NULL, NULL)
+                ELSE:
+                    _c_err = _c_.svn_error_create(
+                                _c_.SVN_ERR_UNSUPPORTED_FEATURE, NULL, NULL)
+                break
+            except io.BlockingIOError as err:
+                rlen = err.characters_written
+                if rlen == rest:
+                    # may not happen: blocked but already read specified bytes.
+                    break
+            except KeyboardInterrupt as err:
+                _c_err = _c_.svn_error_create(
+                            _c_.SVN_ERR_CANCELLED, NULL, str(err))
+                break
+            except Exception as err:
+                _c_err = _c_.svn_error_create(
+                            _c_.SVN_ERR_SWIG_PY_EXCEPTION_SET, NULL,
+                            ("Python exception has been set in stream_skip: %s"
+                              % str(err)))
+            # end of try block
+            rest -= rlen
+        return _c_err
+
+
+cdef _c_.svn_error_t * _py_io_write_fn(
+        void * _c_baton, const char * _c_buffer,
+        _c_.apr_size_t * _c_len) with gil:
+    cdef _py_io_stream_baton btn
+    cdef _c_.svn_error_t * _c_err
+    cdef object serr
+    cdef object err
+    cdef Svn_error svnerr
+    cdef CharPtrReadBuffer buf
+    cdef object rlen
+    cdef const char * _c_bp
+    cdef _c_.apr_size_t rest
+
+    btn = <_py_io_stream_baton>_c_baton
+    _c_err = NULL
+    if btn.baton.is_eof:
+        _c_len[0] = 0
+        _c_err = _c_.svn_error_create(
+                    _c_.APR_EOF, NULL, NULL)
+        return _c_err
+
+    buf = CharPtrReadBuffer.__new__(CharPtrReadBuffer)
+    _c_bp = _c_buffer
+    rest = _c_len[0]
+    while rest > 0:
+        buf.set_buffer(_c_bp, rest)
+        try:
+            rlen = btn.baton.fo.write(buf)
+            if rlen is None or rlen == 0:
+                continue
+        except io.UnsupportedOperation:
+            IF SVN_API_VER >= (1, 9):
+                _c_err = _c_.svn_error_create(
+                            _c_.SVN_ERR_STREAM_NOT_SUPPORTED, NULL, NULL)
+            ELSE:
+                _c_err = _c_.svn_error_create(
+                            _c_.SVN_ERR_UNSUPPORTED_FEATURE, NULL, NULL)
+            break
+        except io.BlockingIOError as err:
+            rlen = err.characters_written
+            if rlen == rest:
+                # may not happen: blocked but already write specified bytes.
+                rest = 0
+                break
+        except KeyboardInterrupt as err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_CANCELLED, NULL, str(err))
+            break
+        except Exception as err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_SWIG_PY_EXCEPTION_SET, NULL,
+                        ("Python exception has been set while writing buffer: "
+                         "%s" % str(err)))
+        # end of try block
+        rest -= rlen
+        _c_bp += rlen
+    # end of while
+    _c_len[0] -= rest
+    del buf
+    return _c_err
+
+
+cdef _c_.svn_error_t * _py_io_close_fn(void * _c_baton) with gil:
+    cdef _py_io_stream_baton btn
+    cdef _c_.svn_error_t * _c_err
+    cdef object serr
+    cdef object err
+    cdef Svn_error svnerr
+
+    btn = <_py_io_stream_baton>_c_baton
+    _c_err = NULL
+    try:
+        btn.baton.fo.close()
+        btn.baton.is_eof = True
+    except Exception as err:
+        _c_err = _c_.svn_error_create(
+                         _c_.SVN_ERR_SWIG_PY_EXCEPTION_SET, NULL,
+                        ("Python exception has been set in "
+                         "stream_close: %s" % str(err)))
+    return _c_err
+
+
+IF SVN_API_VER >= (1, 7):
+    cdef _c_.svn_error_t * _py_io_mark_fn(
+            void * _c_baton, _c_.svn_stream_mark_t ** _c_mark,
+            _c_.apr_pool_t * _c_pool) with gil:
+        cdef _py_io_stream_baton btn
+        cdef object mark
+        cdef _c_.svn_error_t * _c_err
+        cdef object err
+
+        btn = <_py_io_stream_baton>_c_baton
+        _c_err = NULL
+        try:
+            mark = btn.baton.fo.tell()
+            btn.marks[btn.next_mark] = mark
+            assert sizeof(void *) >= sizeof(int)
+            (<int *>_c_mark)[0]= <int>(btn.next_mark)
+            btn.next_mark += 1
+        except Exception as err:
+            _c_err = _c_.svn_error_create(
+                            _c_.SVN_ERR_SWIG_PY_EXCEPTION_SET, NULL,
+                            ("Python exception has been set in "
+                             "stream_mark: %s" % str(err)))
+        return _c_err
+
+
+    cdef _c_.svn_error_t * _py_io_seek_fn(
+            void * _c_baton, const _c_.svn_stream_mark_t * _c_mark) with gil:
+        cdef _py_io_stream_baton btn
+        cdef _c_.svn_error_t * _c_err
+        cdef object err
+        cdef object mark
+
+        btn = <_py_io_stream_baton>_c_baton
+        _c_err = NULL
+        try:
+            if _c_mark is NULL:
+                mark = 0
+            else:
+                mark_key = <int>_c_mark
+                mark = btn.marks[mark_key]
+            btn.baton.fo.seek(mark, 0)
+        except Exception as err:
+            _c_err = _c_.svn_error_create(
+                            _c_.SVN_ERR_SWIG_PY_EXCEPTION_SET, NULL,
+                            ("Python exception has been set in "
+                             "stream_seek: %s" % str(err)))
+        return _c_err
+
+# svn_stream_t based on Python io.RawIO or io.BufferdIO
+cdef class py_io_stream(svn_stream_t):
+    def __cinit__(self, object fo):
+        pass
+    def __init__(self, object fo, object pool):
+        assert isinstance(fo, io.IOBase)
+
+        if pool is not None:
+            assert (<Apr_Pool?>pool)._c_pool is not NULL
+            self.pool = pool
+        else:
+            self.pool = _root_pool
+        self.baton = _py_io_stream_baton(fo)
+        self._c_ptr = _c_.svn_stream_create(
+                                <void *>(self.baton), self.pool._c_pool)
+        # check io capability and set callbacks
+        if self.baton.fo.readable():
+            IF SVN_API_VER >= (1, 9):
+                _c_.svn_stream_set_read2(
+                    self._c_ptr, _py_io_read_fn, _py_io_read_full_fn)
+            ELSE:
+                _c_.svn_stream_set_read(
+                    self._c_ptr, _py_io_read_full_fn)
+            if self.baton.fo.seekable():
+                _c_.svn_stream_set_skip(self._c_ptr, _py_io_skip_with_seek_fn)
+            else:
+                _c_.svn_stream_set_skip(
+                            self._c_ptr, _py_io_skip_without_seek_fn)
+        else:
+            IF SVN_API_VER >= (1, 9):
+                _c_.svn_stream_set_read2(
+                    self._c_ptr, NULL, NULL)
+            ELSE:
+                _c_.svn_stream_set_read(
+                    self._c_ptr, NULL)
+            _c_.svn_stream_set_seek(self._c_ptr, NULL)
+        if self.baton.fo.writable():
+            _c_.svn_stream_set_write(self._c_ptr, _py_io_write_fn)
+        else:
+            _c_.svn_stream_set_write(self._c_ptr, NULL)
+        _c_.svn_stream_set_close(self._c_ptr, _py_io_close_fn)
+        IF SVN_API_VER >= (1, 7):
+            if self.baton.fo.seekable():
+                _c_.svn_stream_set_mark(self._c_ptr, _py_io_mark_fn)
+                _c_.svn_stream_set_seek(self._c_ptr, _py_io_seek_fn)
+            else:
+                _c_.svn_stream_set_mark(self._c_ptr, NULL)
+                _c_.svn_stream_set_seek(self._c_ptr, NULL)
+        IF SVN_API_VER >= (1, 9):
+            # we don't support svn_stream_data_available()
+            _c_.svn_stream_set_data_available(self._c_ptr, NULL)
+        IF SVN_API_VER >= (1, 10):
+            # we don't support svn_stream_readline() directly, simply
+            # because io.BaseIO.readline() is not available here for
+            # 'eol' argument, and subversion's internal fall back
+            # function may be faster than implementation using Cython.
+            _c_.svn_stream_set_readline(self._c_ptr, NULL)
+
+
+# baton for implement generic svn_stream_t with Python
+cdef class _py_generic_stream_baton(_py_stream_baton):
+    def __cinit__(self):
+        self.read_fn = None
+        IF SVN_API_VER >= (1, 9):
+            self.read_full_fn = None
+        IF SVN_API_VER >= (1, 7):
+            self.skip_fn = None
+        self.write_fn = None
+        self.close_fn = None
+        IF SVN_API_VER >= (1, 7):
+            self.mark_fn = None
+            self.seek_fn = None
+        IF SVN_API_VER >= (1, 9):
+            self.data_available_fn = None
+        IF SVN_API_VER >= (1, 10):
+            self.readline_fn = None
+
+
 cdef _c_.svn_error_t * _py_read_fn(
         void * _c_baton, char * _c_buffer, _c_.apr_size_t * _c_len) with gil:
-    cdef _py_stream_baton btn
+    cdef _py_generic_stream_baton btn
     cdef _c_.svn_error_t * _c_err
     cdef object serr
     cdef object err
     cdef Svn_error svnerr
     cdef CharPtrWriteBuffer buf
 
-    btn = <_py_stream_baton>_c_baton
+    btn = <_py_generic_stream_baton>_c_baton
     _c_err = NULL
     if btn.read_fn is None:
         IF SVN_API_VER >= (1, 9):
@@ -989,16 +1559,17 @@ cdef _c_.svn_error_t * _py_read_fn(
         del buf
     return _c_err
 
+
 cdef _c_.svn_error_t * _py_read_full_fn(
         void * _c_baton, char * _c_buffer, _c_.apr_size_t * _c_len) with gil:
-    cdef _py_stream_baton btn
+    cdef _py_generic_stream_baton btn
     cdef _c_.svn_error_t * _c_err
     cdef object serr
     cdef object err
     cdef Svn_error svnerr
     cdef CharPtrWriteBuffer buf
 
-    btn = <_py_stream_baton>_c_baton
+    btn = <_py_generic_stream_baton>_c_baton
     _c_err = NULL
     if btn.read_full_fn is None:
         IF SVN_API_VER >= (1, 9):
@@ -1029,13 +1600,13 @@ cdef _c_.svn_error_t * _py_read_full_fn(
 IF SVN_API_VER >= (1, 7):
     cdef _c_.svn_error_t * _py_skip_fn(
                 void * _c_baton, _c_.apr_size_t len) with gil:
-        cdef _py_stream_baton btn
+        cdef _py_generic_stream_baton btn
         cdef _c_.svn_error_t * _c_err
         cdef object serr
         cdef object err
         cdef Svn_error svnerr
 
-        btn = <_py_stream_baton>_c_baton
+        btn = <_py_generic_stream_baton>_c_baton
         _c_err = NULL
         if btn.skip_fn is None:
             IF SVN_API_VER >= (1, 9):
@@ -1058,10 +1629,11 @@ IF SVN_API_VER >= (1, 7):
                           % str(err)))
         return _c_err
 
+
 cdef _c_.svn_error_t * _py_write_fn(
         void * _c_baton, const char * _c_buffer,
         _c_.apr_size_t * _c_len) with gil:
-    cdef _py_stream_baton btn
+    cdef _py_generic_stream_baton btn
     cdef _c_.svn_error_t * _c_err
     cdef object serr
     cdef object err
@@ -1069,7 +1641,7 @@ cdef _c_.svn_error_t * _py_write_fn(
     cdef CharPtrReadBuffer buf
     cdef object len
 
-    btn = <_py_stream_baton>_c_baton
+    btn = <_py_generic_stream_baton>_c_baton
     _c_err = NULL
     if btn.write_fn is None:
         IF SVN_API_VER >= (1, 9):
@@ -1098,14 +1670,15 @@ cdef _c_.svn_error_t * _py_write_fn(
         del buf
     return _c_err
 
+
 cdef _c_.svn_error_t * _py_close_fn(void * _c_baton) with gil:
-    cdef _py_stream_baton btn
+    cdef _py_generic_stream_baton btn
     cdef _c_.svn_error_t * _c_err
     cdef object serr
     cdef object err
     cdef Svn_error svnerr
 
-    btn = <_py_stream_baton>_c_baton
+    btn = <_py_generic_stream_baton>_c_baton
     _c_err = NULL
     if btn.close_fn is not None:
         try:
@@ -1126,13 +1699,13 @@ IF SVN_API_VER >= (1, 7):
     cdef _c_.svn_error_t * _py_mark_fn(
             void * _c_baton, _c_.svn_stream_mark_t ** _c_mark,
             _c_.apr_pool_t * _c_pool) with gil:
-        cdef _py_stream_baton btn
+        cdef _py_generic_stream_baton btn
         cdef _c_.svn_error_t * _c_err
         cdef object serr
         cdef object err
         cdef Svn_error svnerr
 
-        btn = <_py_stream_baton>_c_baton
+        btn = <_py_generic_stream_baton>_c_baton
         _c_err = NULL
         if btn.mark_fn is None:
             IF SVN_API_VER >= (1, 9):
@@ -1162,14 +1735,14 @@ IF SVN_API_VER >= (1, 7):
 
     cdef _c_.svn_error_t * _py_seek_fn(
             void * _c_baton, const _c_.svn_stream_mark_t * _c_mark) with gil:
-        cdef _py_stream_baton btn
+        cdef _py_generic_stream_baton btn
         cdef _c_.svn_error_t * _c_err
         cdef object serr
         cdef object err
         cdef Svn_error svnerr
         cdef object mark
 
-        btn = <_py_stream_baton>_c_baton
+        btn = <_py_generic_stream_baton>_c_baton
         _c_err = NULL
         if btn.seek_fn is None:
             IF SVN_API_VER >= (1, 9):
@@ -1201,13 +1774,13 @@ IF SVN_API_VER >= (1, 7):
 IF SVN_API_VER >= (1, 9):
     cdef _c_.svn_error_t * _py_data_available_fn(
             void * _c_baton, _c_.svn_boolean_t * _c_data_available) with gil:
-        cdef _py_stream_baton btn
+        cdef _py_generic_stream_baton btn
         cdef _c_.svn_error_t * _c_err
         cdef object serr
         cdef object err
         cdef Svn_error svnerr
 
-        btn = <_py_stream_baton>_c_baton
+        btn = <_py_generic_stream_baton>_c_baton
         _c_err = NULL
         if btn.data_available_fn is None:
             IF SVN_API_VER >= (1, 9):
@@ -1233,12 +1806,13 @@ IF SVN_API_VER >= (1, 9):
                          "stream_data_available: %s" % str(err)))
         return _c_err
 
+
 IF SVN_API_VER >= (1, 10):
     cdef _c_.svn_error_t * _py_readline_fn(
             void * _c_baton, _c_.svn_stringbuf_t ** _c_stringbuf,
             const char * _c_eol, _c_.svn_boolean_t * _c_eof,
             _c_.apr_pool_t * pool) with gil:
-        cdef _py_stream_baton btn
+        cdef _py_generic_stream_baton btn
         cdef _c_.svn_error_t * _c_err
         cdef object serr
         cdef object err
@@ -1246,7 +1820,7 @@ IF SVN_API_VER >= (1, 10):
         cdef object eol
         cdef Apr_Pool w_pool
 
-        btn = <_py_stream_baton>_c_baton
+        btn = <_py_generic_stream_baton>_c_baton
         _c_err = NULL
         if btn.readline_fn is None:
             _c_err = _c_.svn_error_create(
@@ -1274,17 +1848,12 @@ IF SVN_API_VER >= (1, 10):
 
 cdef class py_stream(svn_stream_t):
     def __init__(self, pool=None):
-        cdef _c_.apr_status_t ast
-        cdef _c_.apr_pool_t * _c_tmp_pool
-        cdef _c_.svn_error_t * serr
-        cdef Svn_error pyerr
-
         if pool is not None:
             assert (<Apr_Pool?>pool)._c_pool is not NULL
             self.pool = pool
         else:
             self.pool = _root_pool
-        self.baton = _py_stream_baton()
+        self.baton = _py_generic_stream_baton()
         self._c_ptr = _c_.svn_stream_create(
                                 <void *>(self.baton), self.pool._c_pool)
     def set_baton(self, baton):
@@ -1354,120 +1923,3 @@ cdef class py_stream(svn_stream_t):
                 _c_.svn_stream_set_readline(self._c_ptr, NULL)
             self.baton.readline_fn = readline_fn
 
-# for test, not used by vclib modules
-IF SVN_API_VER >= (1, 9):
-    def svn_stream_read2(svn_stream_t stream, len):
-        cdef _c_.apr_size_t _c_len
-        cdef char * _c_buf
-        cdef _c_.svn_error_t * serr
-        cdef Svn_error pyerr
-        # Note: this function read stream as bytes stream without decode
-        assert len > 0
-        assert stream._c_ptr is not NULL
-        if len > _c_.SVN_STREAM_CHUNK_SIZE:
-            _c_buf = <char *>PyMem_Malloc(len)
-        else:
-            _c_buf = _streambuf
-        _c_len = len
-        IF SVN_API_VER >= (1, 9):
-            serr = _c_.svn_stream_read_full(stream._c_ptr, _c_buf, &_c_len)
-        ELSE:
-            serr = _c_.svn_stream_read(stream._c_ptr, _c_buf, &_c_len)
-        if serr is not NULL:
-            if _c_buf != _streambuf:
-                PyMem_Free(_c_buf)
-            pyerr = Svn_error().seterror(serr)
-            raise SVNerr(pyerr)
-        if _c_len > 0:
-            buf = (<bytes>_c_buf)[0:_c_len]
-        else:
-            buf = b''
-        if _c_buf != _streambuf:
-            PyMem_Free(_c_buf)
-        return buf, _c_len
-
-IF SVN_API_VER >= (1, 7):
-    def svn_stream_skip(svn_stream_t stream, len):
-        cdef _c_.apr_size_t _c_len
-        cdef _c_.svn_error_t * serr
-        cdef Svn_error pyerr
-        # Note: this function read stream as bytes stream without decode
-        assert len > 0
-        assert stream._c_ptr is not NULL
-        _c_len = len
-        serr = _c_.svn_stream_skip(stream._c_ptr, _c_len)
-        if serr is not NULL:
-            pyerr = Svn_error().seterror(serr)
-            raise SVNerr(pyerr)
-        return
-
-def svn_stream_write(svn_stream_t stream, const char * data, len):
-    cdef _c_.apr_size_t _c_len
-    cdef char * _c_buf
-    cdef _c_.svn_error_t * serr
-    cdef Svn_error pyerr
-    # Note: this function write to stream as bytes without encode/decode
-    assert len > 0
-    assert stream._c_ptr is not NULL
-    _c_len = len
-    serr = _c_.svn_stream_write(stream._c_ptr, data, &_c_len)
-    if serr is not NULL:
-        pyerr = Svn_error().seterror(serr)
-        raise SVNerr(pyerr)
-    return _c_len
-
-IF SVN_API_VER >= (1, 7):
-    cdef class svn_stream_mark_t(object):
-        cdef _c_.svn_stream_mark_t * _c_mark
-        def __cinit__(self):
-            self._c_mark = NULL
-        cdef inline svn_stream_mark_t set_mark(
-                svn_stream_mark_t self, _c_.svn_stream_mark_t * _c_mark):
-            self._c_mark = _c_mark
-            return self
-        cdef inline _c_.svn_stream_mark_t * get_mark(svn_stream_mark_t self):
-            return self._c_mark
-
-    def svn_stream_mark(svn_stream_t stream, object pool):
-        cdef _c_.svn_error_t * serr
-        cdef _c_.svn_stream_mark_t * _c_mark
-        cdef svn_stream_mark_t mark
-        cdef _c_.apr_pool_t * _c_pool
-        cdef Svn_error pyerr
-        if pool is not None:
-            assert (<Apr_Pool?>pool)._c_pool is not NULL
-            _c_pool = (<Apr_Pool>pool)._c_pool
-        else:
-            _c_pool = _root_pool._c_pool
-        serr = _c_.svn_stream_mark(stream._c_ptr, &_c_mark, _c_pool)
-        if serr is not NULL:
-            pyerr = Svn_error().seterror(serr)
-            raise SVNerr(pyerr)
-        mark =  svn_stream_mark_t().set_mark(_c_mark)
-        return mark
-
-    def svn_stream_seek(svn_stream_t stream, object mark):
-        cdef _c_.svn_error_t * serr
-        cdef _c_.svn_stream_mark_t * _c_mark
-        cdef Svn_error pyerr
-        if mark is None:
-            _c_mark = NULL
-        else:
-            _c_mark = (<svn_stream_mark_t?>mark)._c_mark
-        serr = _c_.svn_stream_seek(stream._c_ptr, _c_mark)
-        if serr is not NULL:
-            pyerr = Svn_error().seterror(serr)
-            raise SVNerr(pyerr)
-        return
-
-
-IF SVN_API_VER >= (1, 9):
-    def svn_stream_data_available(svn_stream_t stream):
-        cdef _c_.svn_error_t * serr
-        cdef _c_.svn_boolean_t _c_avail
-        cdef Svn_error pyerr
-        serr = _c_.svn_stream_data_available(stream._c_ptr, &_c_avail)
-        if serr is not NULL:
-            pyerr = Svn_error().seterror(serr)
-            raise SVNerr(pyerr)
-        return True if _c_avail != _c_.FALSE else False
