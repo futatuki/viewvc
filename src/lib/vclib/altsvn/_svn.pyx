@@ -1081,6 +1081,7 @@ cdef class _py_io_stream_baton(object):
         self.is_eof = True
     def __init__(self, fo):
         self.fo = fo
+        self.is_eof = False
 
 # callbacks
 cdef _c_.svn_error_t * _py_io_read_fn(
@@ -1095,7 +1096,7 @@ cdef _c_.svn_error_t * _py_io_read_fn(
 
     btn = <_py_io_stream_baton>_c_baton
     _c_err = NULL
-    if btn.baton.is_eof:
+    if btn.is_eof:
         _c_len[0] = 0
         return _c_err
     if _c_len[0] == 0:
@@ -1104,14 +1105,14 @@ cdef _c_.svn_error_t * _py_io_read_fn(
     buf = CharPtrWriteBuffer.__new__(CharPtrWriteBuffer)
     buf.set_buffer(_c_buffer, _c_len[0])
     try:
-        len = btn.baton.fo.readinto(buf)
+        len = btn.fo.readinto(buf)
         if len is None:
             _c_len[0] = 0
             ast = _c_.APR_EAGAIN
             _c_err = _c_.svn_error_create(ast, NULL, NULL)
         else:
             if len == 0:
-                btn.baton.is_eof = True
+                btn.is_eof = True
             _c_len[0] = len
     except io.UnsuportedOperation as err:
         IF SVN_API_VER >= (1, 9):
@@ -1156,10 +1157,8 @@ cdef _c_.svn_error_t * _py_io_read_full_fn(
     cdef object err
 
     btn = <_py_io_stream_baton>_c_baton
-    if btn.baton.is_buffered:
-        return _py_io_read_fn(_c_baton, _c_buffer, _c_len)
     _c_err = NULL
-    if btn.baton.is_eof:
+    if btn.is_eof:
         _c_len[0] = 0
         return _c_err
 
@@ -1168,12 +1167,12 @@ cdef _c_.svn_error_t * _py_io_read_full_fn(
     buf = CharPtrWriteBuffer.__new__(CharPtrWriteBuffer)
     buf.set_buffer(_c_bp, rest)
     try:
-        len = btn.baton.fo.readinto(buf)
+        len = btn.fo.readinto(buf)
         if len is None:
             # no bytes are available in blocking mode
             len = 0
         elif len == 0:
-            btn.baton.is_eof = True
+            btn.is_eof = True
             _c_len[0] = 0
             return _c_err
         elif len == rest:
@@ -1210,11 +1209,11 @@ cdef _c_.svn_error_t * _py_io_read_full_fn(
     buf.set_buffer(_c_bp, rest)
     while True:
         try:
-            len = btn.baton.fo.readinto(buf)
+            len = btn.fo.readinto(buf)
             if len is None:
                 continue
             elif len == 0:
-                btn.baton.is_eof = True
+                btn.is_eof = True
                 _c_len[0] -= rest
                 break
             elif len == rest:
@@ -1260,7 +1259,7 @@ IF SVN_API_VER >= (1, 7):
         btn = <_py_io_stream_baton>_c_baton
         _c_err = NULL
         try:
-            btn.baton.fo.seek(len, 1)
+            btn.fo.seek(len, 1)
         except io.UnsupportedOperation:
             # fall back to without seek version
             return _py_io_skip_without_seek_fn(_c_baton, len)
@@ -1286,7 +1285,7 @@ IF SVN_API_VER >= (1, 7):
         rest = len
         while rest > 0:
             try:
-                rbytes, rlen = btn.baton.fo.read(rest)
+                rbytes, rlen = btn.fo.read(rest)
             except io.UnsupportedOperation:
                 IF SVN_API_VER >= (1, 9):
                     _c_err = _c_.svn_error_create(
@@ -1329,7 +1328,7 @@ cdef _c_.svn_error_t * _py_io_write_fn(
 
     btn = <_py_io_stream_baton>_c_baton
     _c_err = NULL
-    if btn.baton.is_eof:
+    if btn.is_eof:
         _c_len[0] = 0
         _c_err = _c_.svn_error_create(
                     _c_.APR_EOF, NULL, NULL)
@@ -1341,7 +1340,7 @@ cdef _c_.svn_error_t * _py_io_write_fn(
     while rest > 0:
         buf.set_buffer(_c_bp, rest)
         try:
-            rlen = btn.baton.fo.write(buf)
+            rlen = btn.fo.write(buf)
             if rlen is None or rlen == 0:
                 continue
         except io.UnsupportedOperation:
@@ -1386,8 +1385,8 @@ cdef _c_.svn_error_t * _py_io_close_fn(void * _c_baton) with gil:
     btn = <_py_io_stream_baton>_c_baton
     _c_err = NULL
     try:
-        btn.baton.fo.close()
-        btn.baton.is_eof = True
+        btn.fo.close()
+        btn.is_eof = True
     except Exception as err:
         _c_err = _c_.svn_error_create(
                          _c_.SVN_ERR_SWIG_PY_EXCEPTION_SET, NULL,
@@ -1408,7 +1407,7 @@ IF SVN_API_VER >= (1, 7):
         btn = <_py_io_stream_baton>_c_baton
         _c_err = NULL
         try:
-            mark = btn.baton.fo.tell()
+            mark = btn.fo.tell()
             btn.marks[btn.next_mark] = mark
             assert sizeof(void *) >= sizeof(int)
             (<int *>_c_mark)[0]= <int>(btn.next_mark)
@@ -1436,7 +1435,7 @@ IF SVN_API_VER >= (1, 7):
             else:
                 mark_key = <int>_c_mark
                 mark = btn.marks[mark_key]
-            btn.baton.fo.seek(mark, 0)
+            btn.fo.seek(mark, 0)
         except Exception as err:
             _c_err = _c_.svn_error_create(
                             _c_.SVN_ERR_SWIG_PY_EXCEPTION_SET, NULL,
@@ -1446,9 +1445,9 @@ IF SVN_API_VER >= (1, 7):
 
 # svn_stream_t based on Python io.RawIO or io.BufferdIO
 cdef class py_io_stream(svn_stream_t):
-    def __cinit__(self, object fo):
+    def __cinit__(self, object fo, object pool, **m):
         pass
-    def __init__(self, object fo, object pool):
+    def __init__(self, object fo, object pool, **m):
         assert isinstance(fo, io.IOBase)
 
         if pool is not None:

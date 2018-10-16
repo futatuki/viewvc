@@ -117,9 +117,11 @@ cdef class _py_stream_baton(object):
         # next_mark == len(marks)+1
         cdef int next_mark
 
+
 cdef class _py_io_stream_baton(_py_stream_baton):
     cdef readonly object fo
     cdef public object is_eof
+
 
 cdef class _py_generic_stream_baton(_py_stream_baton):
     cdef object read_fn
@@ -137,6 +139,7 @@ cdef class _py_generic_stream_baton(_py_stream_baton):
     IF SVN_API_VER >= (1, 10):
         cdef object readline_fn
 
+
 cdef class CharPtrWriteBuffer:
     cdef char * _c_buf
     cdef Py_ssize_t len
@@ -144,6 +147,7 @@ cdef class CharPtrWriteBuffer:
     cdef Py_ssize_t strides[1]
     cdef CharPtrWriteBuffer set_buffer(
             CharPtrWriteBuffer self, char * _c_buf, Py_ssize_t len)
+
 
 cdef class CharPtrReadBuffer:
     cdef const char * _c_buf
@@ -153,8 +157,11 @@ cdef class CharPtrReadBuffer:
     cdef CharPtrReadBuffer set_buffer(
             CharPtrReadBuffer self, const char * _c_buf, Py_ssize_t len)
 
+
 cdef class py_io_stream(svn_stream_t):
     cdef _py_io_stream_baton baton
 
+
 cdef class py_stream(svn_stream_t):
-    cdef _py_stream_baton baton
+    cdef _py_generic_stream_baton baton
+
