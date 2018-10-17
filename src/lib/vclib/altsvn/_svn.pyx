@@ -1520,7 +1520,9 @@ cdef class _py_generic_stream_baton(_py_stream_baton):
         IF SVN_API_VER >= (1, 10):
             self.readline_fn = None
 
-
+# warn: for API version 1.8 and below, read_fn should read full length or
+#       to EOF. And for API version 1.9 and above, read_fn is used for
+#       svn_stream_read2() (may support partial read)
 cdef _c_.svn_error_t * _py_read_fn(
         void * _c_baton, char * _c_buffer, _c_.apr_size_t * _c_len) with gil:
     cdef _py_generic_stream_baton btn
@@ -1559,42 +1561,41 @@ cdef _c_.svn_error_t * _py_read_fn(
     return _c_err
 
 
-cdef _c_.svn_error_t * _py_read_full_fn(
-        void * _c_baton, char * _c_buffer, _c_.apr_size_t * _c_len) with gil:
-    cdef _py_generic_stream_baton btn
-    cdef _c_.svn_error_t * _c_err
-    cdef object serr
-    cdef object err
-    cdef Svn_error svnerr
-    cdef CharPtrWriteBuffer buf
+IF SVN_API_VER >= (1, 9):
+    cdef _c_.svn_error_t * _py_read_full_fn(
+            void * _c_baton, char * _c_buffer,
+            _c_.apr_size_t * _c_len) with gil:
+        cdef _py_generic_stream_baton btn
+        cdef _c_.svn_error_t * _c_err
+        cdef object serr
+        cdef object err
+        cdef Svn_error svnerr
+        cdef CharPtrWriteBuffer buf
 
-    btn = <_py_generic_stream_baton>_c_baton
-    _c_err = NULL
-    if btn.read_full_fn is None:
-        IF SVN_API_VER >= (1, 9):
+        btn = <_py_generic_stream_baton>_c_baton
+        _c_err = NULL
+        if btn.read_full_fn is None:
             _c_err = _c_.svn_error_create(
                         _c_.SVN_ERR_STREAM_NOT_SUPPORTED, NULL, NULL)
-        ELSE:
+            return _c_err
+        # wrap the buffer pointer into buffer object
+        buf = CharPtrWriteBuffer.__new__(CharPtrWriteBuffer)
+        buf.set_buffer(_c_buffer, _c_len[0])
+        try:
+            _c_len[0] = btn.read_full_fn(btn.baton, buf, _c_len[0])
+        except SVNerr as serr:
+            svnerr = serr.svnerr
+            _c_err = _c_.svn_error_dup(svnerr.geterror())
+            del serr
+        except Exception as err:
             _c_err = _c_.svn_error_create(
-                        _c_.SVN_ERR_UNSUPPORTED_FEATURE, NULL, NULL)
+                        _c_.SVN_ERR_SWIG_PY_EXCEPTION_SET, NULL,
+                        ("Python exception has been set while reading buffer: "
+                         "%s" % str(err)))
+        finally:
+            del buf
         return _c_err
-    # wrap the buffer pointer into buffer object
-    buf = CharPtrWriteBuffer.__new__(CharPtrWriteBuffer)
-    buf.set_buffer(_c_buffer, _c_len[0])
-    try:
-        _c_len[0] = btn.read_full_fn(btn.baton, buf, _c_len[0])
-    except SVNerr as serr:
-        svnerr = serr.svnerr
-        _c_err = _c_.svn_error_dup(svnerr.geterror())
-        del serr
-    except Exception as err:
-        _c_err = _c_.svn_error_create(
-                    _c_.SVN_ERR_SWIG_PY_EXCEPTION_SET, NULL,
-                    ("Python exception has been set while reading buffer: %s"
-                      % str(err)))
-    finally:
-        del buf
-    return _c_err
+
 
 IF SVN_API_VER >= (1, 7):
     cdef _c_.svn_error_t * _py_skip_fn(
