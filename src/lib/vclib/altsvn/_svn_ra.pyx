@@ -149,7 +149,7 @@ def setup_client_ctx(object config_dir, object result_pool=None):
         _c_cfg = <_c_.svn_config_t *>_c_.apr_hash_get(
                             _c_cfg_hash, _c_.SVN_CONFIG_CATEGORY_CONFIG,
                             _c_.APR_HASH_KEY_STRING)
-        IF SVN_API_VER >= (1, 8):
+        IF SVN_API_VER >= (1, 9):
             serr = _c_.svn_cmdline_create_auth_baton2(
                         &_c_auth_baton, _c_.TRUE, NULL, NULL,
                         _c_config_dir, _c_.TRUE,

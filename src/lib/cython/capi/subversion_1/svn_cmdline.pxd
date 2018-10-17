@@ -6,7 +6,7 @@ from subversion_1.svn_config cimport svn_config_t
 from subversion_1.svn_auth cimport svn_auth_baton_t
 
 cdef extern from "svn_cmdline.h" nogil:
-    IF SVN_API_VER >= (1, 8):
+    IF SVN_API_VER >= (1, 9):
         svn_error_t *  svn_cmdline_create_auth_baton2(
                 svn_auth_baton_t ** ab, svn_boolean_t non_interactive,
                 const char * username, const char * password,
