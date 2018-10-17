@@ -85,7 +85,7 @@ cdef extern from "svn_fs.h" nogil:
             const char * path, apr_pool_t * pool)
     ctypedef struct svn_fs_history_t:
         pass
-    IF SVN_API_VER >= (1, 10):
+    IF SVN_API_VER >= (1, 9):
         svn_error_t * svn_fs_node_history2(
                 svn_fs_history_t ** history_p, svn_fs_root_t * root,
                 const char * path, apr_pool_t * result_pool,
@@ -94,11 +94,11 @@ cdef extern from "svn_fs.h" nogil:
                 svn_fs_history_t ** prev_history_p, svn_fs_history_t * history,
                 svn_boolean_t cross_copies, apr_pool_t *result_pool,
                 apr_pool_t *scratch_pool)
-    # deprecated (in 1.10.)
+    # deprecated (in 1.9.)
     svn_error_t * svn_fs_node_history(
             svn_fs_history_t ** history_p, svn_fs_root_t * root,
             const char * path, apr_pool_t * pool)
-    # deprecated (in 1.10.)
+    # deprecated (in 1.9.)
     svn_error_t * svn_fs_history_prev(
             svn_fs_history_t ** prev_history_p, svn_fs_history_t * history,
             svn_boolean_t cross_copies, apr_pool_t *pool)

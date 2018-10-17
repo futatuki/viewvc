@@ -346,7 +346,7 @@ cdef class svn_fs_history_t(object):
 
 # warn: though result_pool is optional, ommiting to specify it causes
 # allocation from global pool, and not releases its allocation until
-# the program terminates. (scratch_pool is used only if API version >= 1.10)
+# the program terminates. (scratch_pool is used only if API version >= 1.9)
 def svn_fs_node_history(
         svn_fs_root_t root, const char * path,
         result_pool=None, scratch_pool=None):
@@ -362,7 +362,7 @@ def svn_fs_node_history(
         r_pool = result_pool
     else:
         r_pool = _svn._root_pool
-    IF SVN_API_VER >= (1, 10):
+    IF SVN_API_VER >= (1, 9):
         if scratch_pool is not None:
             assert (<_svn.Apr_Pool>scratch_pool)._c_pool is not NULL
             ast = _c_.apr_pool_create(
@@ -375,7 +375,7 @@ def svn_fs_node_history(
         if ast:
             raise _svn.PoolError()
     try:
-        IF SVN_API_VER >= (1, 10):
+        IF SVN_API_VER >= (1, 9):
             serr = _c_.svn_fs_node_history2(
                             &_c_history, root._c_ptr, path,
                             r_pool._c_pool, _c_tmp_pool)
@@ -387,7 +387,7 @@ def svn_fs_node_history(
             pyerr = _svn.Svn_error().seterror(serr)
             raise _svn.SVNerr(pyerr)
     finally:
-        IF SVN_API_VER >= (1, 10):
+        IF SVN_API_VER >= (1, 9):
             _c_.apr_pool_destroy(_c_tmp_pool)
         ELSE:
             pass
@@ -395,7 +395,7 @@ def svn_fs_node_history(
 
 # warn: though result_pool is optional, ommiting to specify it causes
 # allocation from global pool, and not releases its allocation until
-# the program terminates. (scratch_pool is used only if API version >= 1.10)
+# the program terminates. (scratch_pool is used only if API version >= 1.9)
 def svn_fs_history_prev(
         svn_fs_history_t history, object cross_copies,
         result_pool=None, scratch_pool=None):
@@ -413,7 +413,7 @@ def svn_fs_history_prev(
     else:
         r_pool = _svn._root_pool
     _c_cross_copies = True if cross_copies else False
-    IF SVN_API_VER >= (1, 10):
+    IF SVN_API_VER >= (1, 9):
         if scratch_pool is not None:
             assert (<_svn.Apr_Pool>scratch_pool)._c_pool is not NULL
             ast = _c_.apr_pool_create(
@@ -426,7 +426,7 @@ def svn_fs_history_prev(
         if ast:
             raise _svn.PoolError()
     try:
-        IF SVN_API_VER >= (1, 10):
+        IF SVN_API_VER >= (1, 9):
             serr = _c_.svn_fs_history_prev2(
                             &_c_prev, history._c_ptr, _c_cross_copies,
                             r_pool._c_pool, _c_tmp_pool)
@@ -438,7 +438,7 @@ def svn_fs_history_prev(
             pyerr = _svn.Svn_error().seterror(serr)
             raise _svn.SVNerr(pyerr)
     finally:
-        IF SVN_API_VER >= (1, 10):
+        IF SVN_API_VER >= (1, 9):
             _c_.apr_pool_destroy(_c_tmp_pool)
         ELSE:
             pass
