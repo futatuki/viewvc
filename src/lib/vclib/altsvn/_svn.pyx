@@ -1084,66 +1084,64 @@ cdef class _py_io_stream_baton(object):
         self.is_eof = False
 
 # callbacks
-cdef _c_.svn_error_t * _py_io_read_fn(
-        void * _c_baton, char * _c_buffer, _c_.apr_size_t * _c_len) with gil:
-    cdef _py_io_stream_baton btn
-    cdef _c_.svn_error_t * _c_err
-    cdef _c_.apr_status_t ast
-    cdef char * emsg
-    cdef object err
-    cdef CharPtrWriteBuffer buf
-    cdef object len
+IF SVN_API_VER >= (1, 9):
+    cdef _c_.svn_error_t * _py_io_read_fn(
+            void * _c_baton, char * _c_buffer,
+            _c_.apr_size_t * _c_len) with gil:
+        cdef _py_io_stream_baton btn
+        cdef _c_.svn_error_t * _c_err
+        cdef _c_.apr_status_t ast
+        cdef char * emsg
+        cdef object err
+        cdef CharPtrWriteBuffer buf
+        cdef object len
 
-    btn = <_py_io_stream_baton>_c_baton
-    _c_err = NULL
-    if btn.is_eof:
-        _c_len[0] = 0
-        return _c_err
-    if _c_len[0] == 0:
-        return _c_err
-    # wrap the buffer pointer into buffer object
-    buf = CharPtrWriteBuffer.__new__(CharPtrWriteBuffer)
-    buf.set_buffer(_c_buffer, _c_len[0])
-    try:
-        len = btn.fo.readinto(buf)
-        if len is None:
+        btn = <_py_io_stream_baton>_c_baton
+        _c_err = NULL
+        if btn.is_eof:
             _c_len[0] = 0
-            ast = _c_.APR_EAGAIN
-            _c_err = _c_.svn_error_create(ast, NULL, NULL)
-        else:
-            if len == 0:
-                btn.is_eof = True
-            _c_len[0] = len
-    except io.UnsuportedOperation as err:
-        IF SVN_API_VER >= (1, 9):
+            return _c_err
+        if _c_len[0] == 0:
+            return _c_err
+        # wrap the buffer pointer into buffer object
+        buf = CharPtrWriteBuffer.__new__(CharPtrWriteBuffer)
+        buf.set_buffer(_c_buffer, _c_len[0])
+        try:
+            len = btn.fo.readinto(buf)
+            if len is None:
+                _c_len[0] = 0
+                ast = _c_.APR_EAGAIN
+                _c_err = _c_.svn_error_create(ast, NULL, NULL)
+            else:
+                if len == 0:
+                    btn.is_eof = True
+                _c_len[0] = len
+        except io.UnsuportedOperation as err:
             _c_err = _c_.svn_error_create(
                         _c_.SVN_ERR_STREAM_NOT_SUPPORTED, NULL, NULL)
-        ELSE:
+        except io.BlockingIOError as err:
+            _c_len[0] = err.characters_written
+            emsg = NULL
+            if err.errno in (errno.EAGAIN, errno.EWOULDBLOCK):
+                ast = _c_.APR_EAGAIN
+            elif err.errno in (errno.EALREADY, errno.EINPROGRESS):
+                ast = _c_.APR_EINPROGRESS
+            else:
+                # unknown ...
+                ast = _c_.APR_EGENERAL
+                emsg = b'Unknown BlockingIOError on reading buffer'
+            _c_err = _c_.svn_error_create(ast, NULL, emsg)
+        except KeyboardInterrupt as err:
             _c_err = _c_.svn_error_create(
-                        _c_.SVN_ERR_UNSUPPORTED_FEATURE, NULL, NULL)
-    except io.BlockingIOError as err:
-        _c_len[0] = err.characters_written
-        emsg = NULL
-        if err.errno in (errno.EAGAIN, errno.EWOULDBLOCK):
-            ast = _c_.APR_EAGAIN
-        elif err.errno in (errno.EALREADY, errno.EINPROGRESS):
-            ast = _c_.APR_EINPROGRESS
-        else:
-            # unknown ...
-            ast = _c_.APR_EGENERAL
-            emsg = b'Unknown BlockingIOError on reading buffer'
-        _c_err = _c_.svn_error_create(ast, NULL, emsg)
-    except KeyboardInterrupt as err:
-        _c_err = _c_.svn_error_create(
-                    _c_.SVN_ERR_CANCELLED, NULL, str(err))
-    except Exception as err:
-        _c_err = _c_.svn_error_create(
-                    _c_.SVN_ERR_SWIG_PY_EXCEPTION_SET, NULL,
-                    ("Python exception has been set while reading buffer: %s"
-                      % str(err)))
-    finally:
-        del buf
-    return _c_err
+                        _c_.SVN_ERR_CANCELLED, NULL, str(err))
+        except Exception as err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_SWIG_PY_EXCEPTION_SET, NULL,
+                        ("Python exception has been set while reading buffer: "
+                         "%s" % str(err)))
+        finally:
+            del buf
+        return _c_err
 
 
 cdef _c_.svn_error_t * _py_io_read_full_fn(
