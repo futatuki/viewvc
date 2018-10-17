@@ -15,43 +15,27 @@
 import vclib
 import sys
 import os
+import io
 import re
 import tempfile
-import time
 import urllib
-from svn_repos import Revision, SVNChangedPath, _datestr_to_date, \
+from . import _svn
+from . import _svn_ra
+from . import _norm
+from ._svn import canonicalize_path
+from svn_repos import Revision, SVNChangedPath, FileContentsPipe\
                       _compare_paths, _path_parts, _cleanup_path, \
-                      _rev2optrev, _fix_subversion_exception, \
-                      _split_revprops, _canonicalize_path
-from svn import core, delta, client, wc, ra
+                      _split_revprops
+#from svn import core, client, ra
 
 
 ### Require Subversion 1.3.1 or better. (for svn_ra_get_locations support)
-if (core.SVN_VER_MAJOR, core.SVN_VER_MINOR, core.SVN_VER_PATCH) < (1, 3, 1):
+# foolproof. because _svn cannot build with API version below 1.4
+if (_svn.SVN_VER_MAJOR, _svn.SVN_VER_MINOR, _svn.SVN_VER_PATCH) < (1, 3, 1):
   raise Exception, "Version requirement not met (needs 1.3.1 or better)"
 
 
 ### BEGIN COMPATABILITY CODE ###
-
-try:
-  SVN_INVALID_REVNUM = core.SVN_INVALID_REVNUM
-except AttributeError: # The 1.4.x bindings are missing core.SVN_INVALID_REVNUM
-  SVN_INVALID_REVNUM = -1
-
-def list_directory(url, peg_rev, rev, flag, ctx):
-  try:
-    dirents, locks = client.svn_client_ls3(url, peg_rev, rev, flag, ctx)
-  except TypeError: # 1.4.x bindings are goofed
-    dirents = client.svn_client_ls3(None, url, peg_rev, rev, flag, ctx)
-    locks = {}
-  return dirents, locks  
-
-def get_directory_props(ra_session, path, rev):
-  try:
-    dirents, fetched_rev, props = ra.svn_ra_get_dir(ra_session, path, rev)
-  except ValueError: # older bindings are goofed
-    props = ra.svn_ra_get_dir(ra_session, path, rev)
-  return props
 
 def client_log(url, start_rev, end_rev, log_limit, include_changes,
                cross_copies, cb_func, ctx):
@@ -70,53 +54,20 @@ def client_log(url, start_rev, end_rev, log_limit, include_changes,
       log_entry = svn_log_entry_t()
       log_entry.changed_paths = paths
       log_entry.revision = revision
-      log_entry.revprops = { core.SVN_PROP_REVISION_LOG : message,
-                             core.SVN_PROP_REVISION_AUTHOR : author,
-                             core.SVN_PROP_REVISION_DATE : date,
+      log_entry.revprops = { _svn.SVN_PROP_REVISION_LOG : message,
+                             _svn.SVN_PROP_REVISION_AUTHOR : author,
+                             _svn.SVN_PROP_REVISION_DATE : date,
                              }
       cb_func(log_entry, pool)
     client.svn_client_log2([url], start_rev, end_rev, log_limit,
                            include_changes, not cross_copies, cb_convert, ctx)
 
 
-def setup_client_ctx(config_dir):
-  # Ensure that the configuration directory exists.
-  core.svn_config_ensure(config_dir)
-
-  # Fetch the configuration (and 'config' bit thereof).
-  cfg = core.svn_config_get_config(config_dir)
-  config = cfg.get(core.SVN_CONFIG_CATEGORY_CONFIG)
-
-  # Here's the compat-sensitive part: try to use
-  # svn_cmdline_create_auth_baton(), and fall back to making our own
-  # if that fails.
-  try:
-    auth_baton = core.svn_cmdline_create_auth_baton(1, None, None, config_dir,
-                                                    1, 1, config, None)
-  except AttributeError:
-    auth_baton = core.svn_auth_open([
-      client.svn_client_get_simple_provider(),
-      client.svn_client_get_username_provider(),
-      client.svn_client_get_ssl_server_trust_file_provider(),
-      client.svn_client_get_ssl_client_cert_file_provider(),
-      client.svn_client_get_ssl_client_cert_pw_file_provider(),
-      ])
-    if config_dir is not None:
-      core.svn_auth_set_parameter(auth_baton,
-                                  core.SVN_AUTH_PARAM_CONFIG_DIR,
-                                  config_dir)
-
-  # Create, setup, and return the client context baton.
-  ctx = client.svn_client_create_context()
-  ctx.config = cfg
-  ctx.auth_baton = auth_baton
-  return ctx
-
 ### END COMPATABILITY CODE ###
 
 
 class LogCollector:
-  
+
   def __init__(self, path, show_all_logs, lockinfo, access_check_func):
     # This class uses leading slashes for paths internally
     if not path:
@@ -128,14 +79,14 @@ class LogCollector:
     self.lockinfo = lockinfo
     self.access_check_func = access_check_func
     self.done = False
-    
+
   def add_log(self, log_entry, pool):
     if self.done:
       return
     paths = log_entry.changed_paths
     revision = log_entry.revision
     msg, author, date, revprops = _split_revprops(log_entry.revprops)
-    
+
     # Changed paths have leading slashes
     changed_paths = paths.keys()
     changed_paths.sort(lambda a, b: _compare_paths(a, b))
@@ -164,15 +115,16 @@ class LogCollector:
         self.done = True
     if this_path:
       self.path = this_path
-    
-def cat_to_tempfile(svnrepos, path, rev):
+
+def cat_to_tempfile(svnrepos, path, rev, scratch_pool):
   """Check out file revision to temporary file"""
-  temp = tempfile.mktemp()
-  stream = core.svn_stream_from_aprfile(temp)
+  fd, temp = tempfile.mkstemp()
+  fp = io.open(fd, 'wb')
+  stream = _svn.py_io_stream(fp, scratch_pool)
   url = svnrepos._geturl(path)
-  client.svn_client_cat(core.Stream(stream), url, _rev2optrev(rev),
-                        svnrepos.ctx)
-  core.svn_stream_close(stream)
+  _svn_ra.svn_client_cat(stream, url, rev, rev, False, False,
+                         svnrepos.ctx, scratch_pool)
+  _svn.svn_stream_close(stream)
   return temp
 
 class SelfCleanFP:
@@ -180,16 +132,16 @@ class SelfCleanFP:
     self._fp = open(path, 'r')
     self._path = path
     self._eof = 0
-    
+
   def read(self, len=None):
     if len:
       chunk = self._fp.read(len)
     else:
       chunk = self._fp.read()
-    if chunk == '':
+    if chunk == b'':
       self._eof = 1
     return chunk
-  
+
   def readline(self):
     chunk = self._fp.readline()
     if chunk == '':
@@ -200,14 +152,14 @@ class SelfCleanFP:
     lines = self._fp.readlines()
     self._eof = 1
     return lines
-    
+
   def close(self):
     self._fp.close()
     os.remove(self._path)
 
   def __del__(self):
     self.close()
-    
+
   def eof(self):
     return self._eof
 
@@ -219,6 +171,8 @@ class RemoteSubversionRepository(vclib.Repository):
     self.auth = authorizer
     self.diff_cmd = utilities.diff or 'diff'
     self.config_dir = config_dir or None
+    self.result_pool = _svn.Apr_Pool()
+    self.scratch_pool = _svn.Apr_Pool()
 
     # See if this repository is even viewable, authz-wise.
     if not vclib.check_root_access(self):
@@ -226,20 +180,19 @@ class RemoteSubversionRepository(vclib.Repository):
 
   def open(self):
     # Setup the client context baton, complete with non-prompting authstuffs.
-    self.ctx = setup_client_ctx(self.config_dir)
-    
-    ra_callbacks = ra.svn_ra_callbacks_t()
-    ra_callbacks.auth_baton = self.ctx.auth_baton
-    self.ra_session = ra.svn_ra_open(self.rootpath, ra_callbacks, None,
-                                     self.ctx.config)
-    self.youngest = ra.svn_ra_get_latest_revnum(self.ra_session)
+    self.ctx = _svn_ra.setup_client_ctx(self.config_dir, self.result_pool)
+    self.ra_session = _svn_ra.open_session_with_ctx(self.rootpath, self.ctx)
+
+    self.youngest = _svn_ra.svn_ra_get_latest_revnum(
+                                    self.ra_session, self.scratch_pool)
     self._dirent_cache = { }
     self._revinfo_cache = { }
 
     # See if a universal read access determination can be made.
     if self.auth and self.auth.check_universal_access(self.name) == 1:
       self.auth = None
-    
+    self.scratch_pool.clear()
+
   def rootname(self):
     return self.name
 
@@ -251,7 +204,7 @@ class RemoteSubversionRepository(vclib.Repository):
 
   def authorizer(self):
     return self.auth
-  
+
   def itemtype(self, path_parts, rev):
     pathtype = None
     if not len(path_parts):
@@ -260,10 +213,11 @@ class RemoteSubversionRepository(vclib.Repository):
       path = self._getpath(path_parts)
       rev = self._getrev(rev)
       try:
-        kind = ra.svn_ra_check_path(self.ra_session, path, rev)
-        if kind == core.svn_node_file:
+        kind = _svn_ra.svn_ra_check_path(
+                                self.ra_session, path, rev, self.scratch_pool)
+        if kind == _svn.svn_node_file:
           pathtype = vclib.FILE
-        elif kind == core.svn_node_dir:
+        elif kind == _svn.svn_node_dir:
           pathtype = vclib.DIR
       except:
         pass
@@ -276,11 +230,11 @@ class RemoteSubversionRepository(vclib.Repository):
   def openfile(self, path_parts, rev, options):
     path = self._getpath(path_parts)
     if self.itemtype(path_parts, rev) != vclib.FILE:  # does auth-check
-      raise vclib.Error("Path '%s' is not a file." % path)
+      raise vclib.Error("Path '%s' is not a file." % _norm(path))
     rev = self._getrev(rev)
     url = self._geturl(path)
     ### rev here should be the last history revision of the URL
-    fp = SelfCleanFP(cat_to_tempfile(self, path, rev))
+    fp = SelfCleanFP(cat_to_tempfile(self, path, rev, self.scratch_pool))
     lh_rev, c_rev = self._get_last_history_rev(path_parts, rev)
     return fp, lh_rev
 
@@ -293,9 +247,9 @@ class RemoteSubversionRepository(vclib.Repository):
     dirents, locks = self._get_dirents(path, rev)
     for name in dirents.keys():
       entry = dirents[name]
-      if entry.kind == core.svn_node_dir:
+      if entry.kind == _svn.svn_node_dir:
         kind = vclib.DIR
-      elif entry.kind == core.svn_node_file:
+      elif entry.kind == _svn.svn_node_file:
         kind = vclib.FILE
       else:
         kind = None
@@ -324,7 +278,7 @@ class RemoteSubversionRepository(vclib.Repository):
         entry.lockinfo = locks[entry.name].owner
 
   def itemlog(self, path_parts, rev, sortby, first, limit, options):
-    assert sortby == vclib.SORTBY_DEFAULT or sortby == vclib.SORTBY_REV   
+    assert sortby == vclib.SORTBY_DEFAULT or sortby == vclib.SORTBY_REV
     path_type = self.itemtype(path_parts, rev) # does auth-check
     path = self._getpath(path_parts)
     rev = self._getrev(rev)
@@ -336,13 +290,13 @@ class RemoteSubversionRepository(vclib.Repository):
     if path_type == vclib.FILE:
       basename = path_parts[-1]
       list_url = self._geturl(self._getpath(path_parts[:-1]))
-      dirents, locks = list_directory(list_url, _rev2optrev(rev),
-                                      _rev2optrev(rev), 0, self.ctx)
+      dirents, locks = _svn_ra.list_directory(
+                            list_url, rev, rev, 0, self.ctx, self.scratch_pool)
       if locks.has_key(basename):
         lockinfo = locks[basename].owner
       if dirents.has_key(basename):
         size_in_rev = dirents[basename].size
-    
+
     # Special handling for the 'svn_latest_log' scenario.
     ### FIXME: Don't like this hack.  We should just introduce
     ### something more direct in the vclib API.
@@ -355,7 +309,7 @@ class RemoteSubversionRepository(vclib.Repository):
     def _access_checker(check_path, check_rev):
       return vclib.check_path_access(self, _path_parts(check_path),
                                      path_type, check_rev)
-      
+
     # It's okay if we're told to not show all logs on a file -- all
     # the revisions should match correctly anyway.
     lc = LogCollector(path, options.get('svn_show_all_dir_logs', 0),
@@ -393,7 +347,7 @@ class RemoteSubversionRepository(vclib.Repository):
     pairs = client.svn_client_proplist2(url, _rev2optrev(rev),
                                         _rev2optrev(rev), 0, self.ctx)
     return pairs and pairs[0][1] or {}
-  
+
   def annotate(self, path_parts, rev, include_text=False):
     path = self._getpath(path_parts)
     if self.itemtype(path_parts, rev) != vclib.FILE:  # does auth-check
@@ -434,14 +388,14 @@ class RemoteSubversionRepository(vclib.Repository):
         line = None
       blame_data.append(vclib.Annotation(line, line_no + 1, revision, prev_rev,
                                          author, date))
-      
+
     client.blame2(url, _rev2optrev(rev), _rev2optrev(oldest_rev),
                   _rev2optrev(rev), _blame_cb, self.ctx)
     return blame_data, rev
 
   def revinfo(self, rev):
     return self._revinfo(rev, 1)
-    
+
   def rawdiff(self, path_parts1, rev1, path_parts2, rev2, type, options={}):
     p1 = self._getpath(path_parts1)
     p2 = self._getpath(path_parts2)
@@ -457,23 +411,22 @@ class RemoteSubversionRepository(vclib.Repository):
     def _date_from_rev(rev):
       date, author, msg, revprops, changes = self._revinfo(rev)
       return date
-    
+
     try:
-      temp1 = cat_to_tempfile(self, p1, r1)
-      temp2 = cat_to_tempfile(self, p2, r2)
+      temp1 = cat_to_tempfile(self, p1, r1, self.scratch_pool)
+      temp2 = cat_to_tempfile(self, p2, r2, self.scratch_pool)
       info1 = p1, _date_from_rev(r1), r1
       info2 = p2, _date_from_rev(r2), r2
       return vclib._diff_fp(temp1, temp2, info1, info2, self.diff_cmd, args)
-    except core.SubversionException, e:
-      _fix_subversion_exception(e)
-      if e.apr_err == vclib.svn.core.SVN_ERR_FS_NOT_FOUND:
+    except _svn.SVNerr as  e:
+      if e.get_code() == _svn.SVN_ERR_FS_NOT_FOUND:
         raise vclib.InvalidRevision
       raise
 
   def isexecutable(self, path_parts, rev):
     props = self.itemprops(path_parts, rev) # does authz-check
-    return props.has_key(core.SVN_PROP_EXECUTABLE)
-  
+    return props.has_key(_svn.SVN_PROP_EXECUTABLE)
+
   def filesize(self, path_parts, rev):
     path = self._getpath(path_parts)
     if self.itemtype(path_parts, rev) != vclib.FILE:  # does auth-check
@@ -482,9 +435,9 @@ class RemoteSubversionRepository(vclib.Repository):
     dirents, locks = self._get_dirents(self._getpath(path_parts[:-1]), rev)
     dirent = dirents.get(path_parts[-1], None)
     return dirent.size
-    
+
   def _getpath(self, path_parts):
-    return '/'.join(path_parts)
+    return b'/'.join(path_parts)
 
   def _getrev(self, rev):
     if rev is None or rev == 'HEAD':
@@ -503,8 +456,8 @@ class RemoteSubversionRepository(vclib.Repository):
   def _geturl(self, path=None):
     if not path:
       return self.rootpath
-    path = self.rootpath + '/' + urllib.quote(path)
-    return _canonicalize_path(path)
+    path = self.rootpath + b'/' + urllib.quote(path)
+    return _svn.canonicalize_path(path)
 
   def _get_dirents(self, path, rev):
     """Return a 2-type of dirents and locks, possibly reading/writing
@@ -512,24 +465,24 @@ class RemoteSubversionRepository(vclib.Repository):
     authz checks, stripping out unreadable dirents."""
 
     dir_url = self._geturl(path)
-    path_parts = _path_parts(path)    
+    path_parts = _path_parts(path)
     if path:
-      key = str(rev) + '/' + path
+      key = str(rev) + b'/' + path
     else:
       key = str(rev)
 
     # Ensure that the cache gets filled...
     dirents_locks = self._dirent_cache.get(key)
     if not dirents_locks:
-      tmp_dirents, locks = list_directory(dir_url, _rev2optrev(rev),
-                                          _rev2optrev(rev), 0, self.ctx)
+      tmp_dirents, locks = _svn_ra.list_directory(dir_url, rev, rev, 0,
+                                                  self.ctx self.scratch_pool)
       dirents = {}
       for name, dirent in tmp_dirents.items():
         dirent_parts = path_parts + [name]
-        kind = dirent.kind 
-        if (kind == core.svn_node_dir or kind == core.svn_node_file) \
+        kind = dirent.kind
+        if (kind == _svn.svn_node_dir or kind == _svn.svn_node_file) \
            and vclib.check_path_access(self, dirent_parts,
-                                       kind == core.svn_node_dir \
+                                       kind == _svn.svn_node_dir \
                                          and vclib.DIR or vclib.FILE, rev):
           lh_rev, c_rev = self._get_last_history_rev(dirent_parts, rev)
           dirent.created_rev = lh_rev
@@ -545,17 +498,13 @@ class RemoteSubversionRepository(vclib.Repository):
          - the last interesting revision equal to or older than REV in
            the history of PATH_PARTS.
          - the created_rev of of PATH_PARTS as of REV."""
-    
+
     path = self._getpath(path_parts)
     url = self._geturl(self._getpath(path_parts))
-    optrev = _rev2optrev(rev)
 
     # Get the last-changed-rev.
-    revisions = []
-    def _info_cb(path, info, pool, retval=revisions):
-      revisions.append(info.last_changed_rev)
-    client.svn_client_info(url, optrev, optrev, _info_cb, 0, self.ctx)
-    last_changed_rev = revisions[0]
+    last_changed_rev = _svn_ra.get_last_changed_rev(
+                                url, rev, self.ctx, self.scratch_pool)
 
     # Now, this object might not have been directly edited since the
     # last-changed-rev, but it might have been the child of a copy.
@@ -570,17 +519,17 @@ class RemoteSubversionRepository(vclib.Repository):
       return revs[0].number, last_changed_rev
     else:
       return last_changed_rev, last_changed_rev
-    
+
   def _revinfo_fetch(self, rev, include_changed_paths=0):
     need_changes = include_changed_paths or self.auth
     revs = []
-    
+
     def _log_cb(log_entry, pool, retval=revs):
       # If Subversion happens to call us more than once, we choose not
       # to care.
       if retval:
         return
-      
+
       revision = log_entry.revision
       msg, author, date, revprops = _split_revprops(log_entry.revprops)
       action_map = { 'D' : vclib.DELETED,
@@ -596,7 +545,7 @@ class RemoteSubversionRepository(vclib.Repository):
 
       # Subversion 1.5 and earlier didn't offer the 'changed_paths2'
       # hash, and in Subversion 1.6, it's offered but broken.
-      try: 
+      try:
         changed_paths = log_entry.changed_paths2
         paths = (changed_paths or {}).keys()
       except:
@@ -613,14 +562,14 @@ class RemoteSubversionRepository(vclib.Repository):
 
         # svn_log_changed_path_t (which we might get instead of the
         # svn_log_changed_path2_t we'd prefer) doesn't have the
-        # 'node_kind' member.        
+        # 'node_kind' member.
         pathtype = None
         if hasattr(change, 'node_kind'):
-          if change.node_kind == core.svn_node_dir:
+          if change.node_kind == _svn.svn_node_dir:
             pathtype = vclib.DIR
-          elif change.node_kind == core.svn_node_file:
+          elif change.node_kind == _svn.svn_node_file:
             pathtype = vclib.FILE
-            
+
         # svn_log_changed_path2_t only has the 'text_modified' and
         # 'props_modified' bits in Subversion 1.7 and beyond.  And
         # svn_log_changed_path_t is without.
@@ -631,7 +580,7 @@ class RemoteSubversionRepository(vclib.Repository):
         if hasattr(change, 'props_modified'):
           if change.props_modified == core.svn_tristate_true:
             props_modified = 1
-            
+
         # Wrong, diddily wrong wrong wrong.  Can you say,
         # "Manufacturing data left and right because it hurts to
         # figure out the right stuff?"
@@ -708,7 +657,7 @@ class RemoteSubversionRepository(vclib.Repository):
 
   def get_youngest_revision(self):
     return self.youngest
-  
+
   def get_location(self, path, rev, old_rev):
     try:
       results = ra.get_locations(self.ra_session, path, rev, [old_rev])
@@ -727,7 +676,7 @@ class RemoteSubversionRepository(vclib.Repository):
     if not vclib.check_path_access(self, old_path_parts, vclib.FILE, old_rev):
       raise vclib.ItemNotFound(path)
     return old_path
-  
+
   def created_rev(self, path, rev):
     lh_rev, c_rev = self._get_last_history_rev(_path_parts(path), rev)
     return lh_rev
@@ -737,7 +686,7 @@ class RemoteSubversionRepository(vclib.Repository):
     revision older than, or equal to, LIMIT_REVISION in which path
     exists.  Return that revision, and the path at which PATH exists in
     that revision."""
-    
+
     # Here's the plan, man.  In the trivial case (where PEG_REVISION is
     # the same as LIMIT_REVISION), this is a no-brainer.  If
     # LIMIT_REVISION is older than PEG_REVISION, we can use Subversion's

@@ -17,17 +17,6 @@ _ra_init()
 del _ra_init
 
 
-cdef class svn_client_ctx_t(object):
-    # cdef _c_.svn_client_ctx_t * _c_ctx
-    # cdef _svn.Apr_Pool pool
-    cdef svn_client_ctx_t set_ctx(self, _c_.svn_client_ctx_t * _c_ctx, pool):
-        assert pool is None or (<_svn.Apr_Pool?>pool)._c_pool is not NULL
-        self.pool = pool
-        assert _c_ctx is not NULL
-        self._c_ctx = _c_ctx
-        return self
-
-
 cdef class svn_ra_session_t(object):
     # cdef _c_.svn_ra_session_t * _c_session
     # cdef _svn.Apr_Pool pool
@@ -37,6 +26,76 @@ cdef class svn_ra_session_t(object):
         self.pool = pool
         assert _c_session is not NULL
         self._c_session = _c_session
+        return self
+
+
+def svn_ra_get_latest_revnum(svn_ra_session_t session, scratch_pool=None):
+    cdef _c_.apr_pool_t * _c_tmp_pool
+    cdef _c_.apr_status_t ast
+    cdef _c_.svn_revnum_t _c_rev
+    cdef _c_.svn_error_t * serr
+    cdef _svn.Svn_error pyerr
+
+    if scratch_pool is not None:
+        assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
+        ast = _c_.apr_pool_create(&_c_tmp_pool,
+                                  (<_svn.Apr_Pool>scratch_pool)._c_pool)
+    else:
+        (<_svn.Apr_Pool>_svn._scratch_pool).clear()
+        ast = _c_.apr_pool_create(&_c_tmp_pool,
+                                  (<_svn.Apr_Pool>_svn._scratch_pool)._c_pool)
+    if ast:
+        raise _svn.PoolError()
+    try:
+        serr = _c_.svn_ra_get_latest_revnum(
+                    session._c_session, &_c_rev, _c_tmp_pool)
+        if serr is not NULL:
+            pyerr = _svn.Svn_error().seterror(serr)
+            raise _svn.SVNerr(pyerr)
+    finally:
+        _c_.apr_pool_destroy(_c_tmp_pool)
+    return _c_rev
+
+
+def svn_ra_check_path(
+        svn_ra_session_t session, const char * _c_path,
+        _c_.svn_revnum_t _c_revision, object scratch_pool=None):
+    cdef _c_.apr_status_t ast
+    cdef _c_.apr_pool_t * _c_tmp_pool
+    cdef _c_.svn_error_t * serr
+    cdef _svn.Svn_error pyerr
+    cdef _c_.svn_node_kind_t _c_kind
+
+    if scratch_pool is not None:
+        assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
+        ast = _c_.apr_pool_create(&_c_tmp_pool,
+                                  (<_svn.Apr_Pool>scratch_pool)._c_pool)
+    else:
+        (<_svn.Apr_Pool>_svn._scratch_pool).clear()
+        ast = _c_.apr_pool_create(&_c_tmp_pool,
+                                  (<_svn.Apr_Pool>_svn._scratch_pool)._c_pool)
+    if ast:
+        raise _svn.PoolError()
+    try:
+        serr = _c_.svn_ra_check_path(
+                        session._c_session, _c_path, _c_revision, &_c_kind,
+                        _c_tmp_pool)
+        if serr is not NULL:
+            pyerr = _svn.Svn_error().seterror(serr)
+            raise _svn.SVNerr(pyerr)
+    finally:
+        _c_.apr_pool_destroy(_c_tmp_pool)
+    return _c_kind
+
+
+cdef class svn_client_ctx_t(object):
+    # cdef _c_.svn_client_ctx_t * _c_ctx
+    # cdef _svn.Apr_Pool pool
+    cdef svn_client_ctx_t set_ctx(self, _c_.svn_client_ctx_t * _c_ctx, pool):
+        assert pool is None or (<_svn.Apr_Pool?>pool)._c_pool is not NULL
+        self.pool = pool
+        assert _c_ctx is not NULL
+        self._c_ctx = _c_ctx
         return self
 
 
@@ -195,59 +254,6 @@ def open_session_with_ctx(const char * rootpath, svn_client_ctx_t ctx):
     return session
 
 
-def svn_ra_get_latest_revnum(svn_ra_session_t session, scratch_pool):
-    cdef _c_.apr_pool_t * _c_tmp_pool
-    cdef _c_.apr_status_t ast
-    cdef _c_.svn_revnum_t _c_rev
-    cdef _c_.svn_error_t * serr
-    cdef _svn.Svn_error pyerr
-
-    if scratch_pool is not None:
-        assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
-        ast = _c_.apr_pool_create(&_c_tmp_pool,
-                                       (<_svn.Apr_Pool>scratch_pool)._c_pool)
-    else:
-        ast = _c_.apr_pool_create(&_c_tmp_pool, _svn._root_pool._c_pool)
-    if ast:
-        raise MemoryError()
-    try:
-        serr = _c_.svn_ra_get_latest_revnum(
-                    session._c_session, &_c_rev, _c_tmp_pool)
-        if serr is not NULL:
-            pyerr = _svn.Svn_error().seterror(serr)
-            raise _svn.SVNerr(pyerr)
-    finally:
-        _c_.apr_pool_destroy(_c_tmp_pool)
-    return _c_rev
-
-def svn_ra_check_path(
-        svn_ra_session_t session, const char * _c_path,
-        _c_.svn_revnum_t _c_revision, object scratch_pool):
-    cdef _c_.apr_status_t ast
-    cdef _c_.apr_pool_t * _c_tmp_pool
-    cdef _c_.svn_error_t * serr
-    cdef _svn.Svn_error pyerr
-    cdef _c_.svn_node_kind_t _c_kind
-
-    if scratch_pool is not None:
-        assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
-        ast = _c_.apr_pool_create(&_c_tmp_pool,
-                                       (<_svn.Apr_Pool>scratch_pool)._c_pool)
-    else:
-        ast = _c_.apr_pool_create(&_c_tmp_pool, _svn._root_pool._c_pool)
-    if ast:
-        raise MemoryError()
-    try:
-        serr = _c_.svn_ra_check_path(
-                        session._c_session, _c_path, _c_revision, &_c_kind,
-                        _c_tmp_pool)
-        if serr is not NULL:
-            pyerr = _svn.Svn_error().seterror(serr)
-            raise _svn.SVNerr(pyerr)
-    finally:
-        _c_.apr_pool_destroy(_c_tmp_pool)
-    return _c_kind
-
 # pool free object to hold member of svn_dirent_t
 # Although the C API document says svn_dirent_t is "@since New in 1.6",
 # but there exists in 1.3.0 source (r858024) and used by
@@ -400,13 +406,13 @@ def list_directory(
     ELSE:
         _c_recurse = _c_.TRUE if recurse else _c_.FALSE
     if scratch_pool is not None:
-        assert (    isinstance(scratch_pool, _svn.Apr_Pool)
-                and (<_svn.Apr_Pool>scratch_pool)._c_pool is not NULL)
-        ast = _c_.apr_pool_create(
-                        &_c_tmp_pool, (<_svn.Apr_Pool>scratch_pool)._c_pool)
+        assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
+        ast = _c_.apr_pool_create(&_c_tmp_pool,
+                                  (<_svn.Apr_Pool>scratch_pool)._c_pool)
     else:
-        ast = _c_.apr_pool_create(
-                        &_c_tmp_pool, (<_svn.Apr_Pool>_svn._root_pool)._c_pool)
+        (<_svn.Apr_Pool>_svn._scratch_pool).clear()
+        ast = _c_.apr_pool_create(&_c_tmp_pool,
+                                  (<_svn.Apr_Pool>_svn._scratch_pool)._c_pool)
     if ast:
         raise _svn.PoolError()
     try:
@@ -457,3 +463,140 @@ def list_directory(
         return btn.dirents, btn.locks
     ELSE:
         return dirents, locks
+
+
+# compatibility wrapper of svn_client_cat*(), for minimum option
+def svn_client_cat(
+        _svn.svn_stream_t out, const char * url, _c_.svn_revnum_t peg_rev,
+        _c_.svn_revnum_t rev, object expand_keywords,
+        object with_props, svn_client_ctx_t ctx,
+        object scratch_pool):
+    cdef _svn.Apr_Pool tmp_pool
+    cdef _svn.svn_opt_revision_t opt_peg_rev
+    cdef _svn.svn_opt_revision_t opt_rev
+    cdef _c_.svn_error_t * serr
+    cdef _svn.Svn_error pyerr
+    IF SVN_API_VER >= (1, 9):
+        cdef _svn.HashTrans prop_trans
+        cdef _c_.apr_hash_t ** props_p
+        cdef _c_.svn_boolean_t _c_expand
+        cdef object props
+
+    opt_peg_rev = _svn.svn_opt_revision_t(_c_.svn_opt_revision_number, peg_rev)
+    opt_rev = _svn.svn_opt_revision_t(_c_.svn_opt_revision_number, rev)
+    if scratch_pool is not None:
+        assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
+        tmp_pool = _svn.Apr_Pool(scratch_pool)
+    else:
+        tmp_pool = _svn.Apr_Pool(_svn._scratch_pool)
+
+    IF SVN_API_VER >= (1, 9):
+        if with_props:
+            prop_trans = _svn.HashTrans(_svn.CStringTransStr(),
+                                        _svn.SvnStringTransStr(),
+                                        tmp_pool)
+            props_p = <_c_.apr_hash_t **>prop_trans.ptr_ref()
+        else:
+            props_p = NULL
+        _c_expand = _c_.TRUE if expand_keywords else _c_.FALSE
+        try:
+            serr = _c_.svn_client_cat3(
+                       props_p, out._c_ptr, url,
+                       &(opt_peg_rev._c_opt_revision),
+                       &(opt_rev._c_opt_revision),
+                       _c_expand, ctx._c_ctx,
+                       tmp_pool._c_pool, tmp_pool._c_pool)
+            if serr is not NULL:
+                pyerr = _svn.Svn_error().seterror(serr)
+                raise _svn.SVNerr(pyerr)
+            if with_props:
+                props = prop_trans.to_object()
+            else:
+                props = None
+        finally:
+            if with_props:
+                del prop_trans
+            del tmp_pool
+    ELSE:
+        try:
+            serr = _c_.svn_client_cat2(
+                       out._c_ptr, url, &(opt_peg_rev._c_opt_revision),
+                       &(opt_rev._c_opt_revision),
+                       ctx._c_ctx, tmp_pool._c_pool)
+            if serr is not NULL:
+                pyerr = _svn.Svn_error().seterror(serr)
+                raise _svn.SVNerr(pyerr)
+            props = None
+        finally:
+            del tmp_pool
+    return props
+
+
+IF SVN_API_VER >= (1, 7):
+    cdef _c_.svn_error_t * _cb_get_last_change_rev(
+            void * _c_baton, const char * abspath_or_url,
+            const _c_.svn_client_info2_t * info,
+            _c_.apr_pool_t * scratch_pool) with gil:
+        cdef object btn
+        btn = <object>_c_baton
+        btn.append(info.last_changed_rev)
+        return NULL
+ELSE:
+    cdef _cb_get_last_change_rev(
+            void * _c_baton, const char * path, const _c_.svn_info_t * info,
+            _c_.apr_pool_t * pool) with gil:
+        cdef object btn
+        btn = <object>_c_baton
+        btn.append(info.last_changed_rev)
+        return NULL
+
+def get_last_changed_rev(
+        const char * url, _c_.svn_revnum_t rev, svn_client_ctx_t ctx,
+        object scratch_pool=None):
+    cdef _svn.Apr_Pool tmp_pool
+    cdef _svn.svn_opt_revision_t opt_rev
+    cdef list rev_list
+    cdef _c_.svn_error_t * serr
+    cdef _svn.Svn_error pyerr
+
+    opt_rev = _svn.svn_opt_revision_t(_c_.svn_opt_revision_number, rev)
+    if scratch_pool is not None:
+        assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
+        tmp_pool = _svn.Apr_Pool(scratch_pool)
+    else:
+        tmp_pool = _svn.Apr_Pool(_svn._scratch_pool)
+    rev_list = []
+    try:
+        IF SVN_API_VER >= (1, 9):
+            serr = _c_.svn_client_info4(
+                        url, &(opt_rev._c_opt_revision),
+                        &(opt_rev._c_opt_revision), _c_.svn_depth_empty,
+                        _c_.FALSE, _c_.TRUE, _c_.FALSE, NULL,
+                        _cb_get_last_change_rev, <void *>rev_list,
+                        ctx._c_ctx, tmp_pool._c_pool)
+        ELIF SVN_API_VER >= (1, 7):
+            serr = _c_.svn_client_info3(
+                        url, &(opt_rev._c_opt_revision),
+                        &(opt_rev._c_opt_revision), _c_.svn_depth_empty,
+                        _c_.FALSE, _c_.TRUE, NULL,
+                        _cb_get_last_change_rev, <void *>rev_list,
+                        ctx._c_ctx, tmp_pool._c_pool)
+        ELIF SVN_API_VER >= (1, 5):
+            serr = _c_.svn_client_info2(
+                        url, &(opt_rev._c_opt_revision),
+                        &(opt_rev._c_opt_revision),
+                        _cb_get_last_change_rev, <void *>rev_list,
+                        _c_.svn_depth_empty, NULL,
+                        ctx._c_ctx, tmp_pool._c_pool)
+        ELSE:
+            serr = _c_.svn_client_info(
+                        url, &(opt_rev._c_opt_revision),
+                        &(opt_rev._c_opt_revision),
+                        _cb_get_last_change_rev, <void *>rev_list,
+                        _c_.FALSE, ctx._c_ctx, tmp_pool._c_pool)
+        if serr is not NULL:
+            pyerr = _svn.Svn_error().seterror(serr)
+            raise _svn.SVNerr(pyerr)
+    finally:
+        del tmp_pool
+    return rev_list[0]

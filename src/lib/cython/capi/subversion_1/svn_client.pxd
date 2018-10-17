@@ -1,11 +1,13 @@
 include "_svn_api_ver.pxi"
-from apr_1.apr cimport apr_int64_t, apr_uint32_t
+from apr_1.apr cimport apr_int64_t, apr_uint32_t, apr_size_t
 from apr_1.apr_pools cimport apr_pool_t
 from apr_1.apr_hash cimport apr_hash_t
 from apr_1.apr_tables cimport apr_array_header_t
 from subversion_1.svn_types cimport *
 from subversion_1.svn_opt cimport svn_opt_revision_t
 from subversion_1.svn_auth cimport *
+from subversion_1.svn_io cimport svn_stream_t
+from subversion_1.svn_wc cimport svn_wc_info_t, svn_wc_schedule_t
 IF SVN_API_VER >= (1, 4):
     from subversion_1.svn_diff cimport svn_diff_file_options_t
 
@@ -170,5 +172,125 @@ cdef extern from "svn_client.h" nogil:
                 const char * path_or_url,
                 const svn_opt_revision_t * peg_revision,
                 const svn_opt_revision_t * revision,
+                svn_boolean_t recurse, svn_client_ctx_t * ctx,
+                apr_pool_t * pool)
+    IF SVN_API_VER >= (1, 8):
+        svn_error_t * svn_client_cat3(
+                apr_hash_t ** props, svn_stream_t * out,
+                const char * path_or_url,
+                const svn_opt_revision_t * peg_revision,
+                const svn_opt_revision_t * revision,
+                svn_boolean_t expand_keywords, svn_client_ctx_t * ctx,
+                apr_pool_t * result_pool, apr_pool_t * scratch_pool)
+    IF SVN_API_VER >= (1, 2):
+        svn_error_t * svn_client_cat2(
+                svn_stream_t * out, const char * path_or_url,
+                const svn_opt_revision_t * peg_revision,
+                const svn_opt_revision_t * revision,
+                svn_client_ctx_t * ctx, apr_pool_t * pool)
+    IF SVN_API_VER >= (1, 7):
+        ctypedef struct svn_client_info2_t:
+            const char *URL
+            svn_revnum_t rev
+            const char *repos_root_URL
+            const char *repos_UUID
+            svn_node_kind_t kind
+            svn_filesize_t size
+            svn_revnum_t last_changed_rev
+            apr_time_t last_changed_date
+            const char *last_changed_author
+            const svn_lock_t *lock
+            const svn_wc_info_t *wc_info
+        ctypedef svn_error_t * (*svn_client_info_receiver2_t)(
+                void *baton, const char *abspath_or_url,
+                const svn_client_info2_t *info, apr_pool_t *scratch_pool)
+    IF SVN_API_VER >= (1, 9):
+        svn_error_t * svn_client_info4(
+                const char *abspath_or_url,
+                const svn_opt_revision_t *peg_revision,
+                const svn_opt_revision_t *revision, svn_depth_t depth,
+                svn_boolean_t fetch_excluded, svn_boolean_t fetch_actual_only,
+                svn_boolean_t include_externals,
+                const apr_array_header_t *changelists,
+                svn_client_info_receiver2_t receiver, void *receiver_baton,
+                svn_client_ctx_t *ctx, apr_pool_t *scratch_pool)
+    IF SVN_API_VER >= (1, 7):
+        svn_error_t * svn_client_info3(
+                const char *abspath_or_url,
+                const svn_opt_revision_t *peg_revision,
+                const svn_opt_revision_t *revision,
+                svn_depth_t depth,
+                svn_boolean_t fetch_excluded,
+                svn_boolean_t fetch_actual_only,
+                const apr_array_header_t *changelists,
+                svn_client_info_receiver2_t receiver,
+                void *receiver_batton,
+                svn_client_ctx_t *ctx,
+                apr_pool_t *scratch_pool)
+    IF SVN_API_VER >= (1, 5):
+        ctypedef struct svn_info_t:
+            const char * URL
+            svn_revnum_t rev
+            svn_node_kind_t kind
+            const char * repos_root_URL
+            const char * repos_UUID
+            svn_revnum_t last_changed_rev
+            apr_time_t last_changed_date
+            const char * last_changed_author
+            svn_lock_t * lock
+            svn_boolean_t has_wc_info
+            svn_wc_schedule_t schedule
+            const char * copyfrom_url
+            svn_revnum_t copyfrom_rev
+            apr_time_t text_time
+            apr_time_t prop_time
+            const char * checksum
+            const char * conflict_old
+            const char * conflict_new
+            const char * conflict_wrk
+            const char * prejfile
+            const char * changelist
+            svn_depth_t depth
+            apr_size_t working_size
+    ELSE:
+        ctypedef struct svn_info_t:
+            const char * URL
+            svn_revnum_t rev
+            svn_node_kind_t kind
+            const char * repos_root_URL
+            const char * repos_UUID
+            svn_revnum_t last_changed_rev
+            apr_time_t last_changed_date
+            const char * last_changed_author
+            svn_locK_t * lock
+            svn_boolean_t has_wc_info
+            svn_wc_schedule_t schedule
+            const char * copyfrom_url
+            svn_revnum_t copyfrom_rev
+            apr_time_t text_time
+            apr_time_t prop_time
+            const char * checksum
+            const char * conflict_old
+            const char * conflict_new
+            const char * conflict_wrk
+            const char * prejfile
+    IF SVN_API_VER >= (1, 2):
+        ctypedef svn_error_t * (* svn_info_receiver_t)(
+                void * baton, const char * path, const svn_info_t * info,
+                apr_pool_t * pool)
+    IF SVN_API_VER >= (1, 5):
+        svn_error_t * svn_client_info2(
+                const char * path_or_url,
+                const svn_opt_revision_t * peg_revision,
+                const svn_opt_revision_t * revision,
+                svn_info_receiver_t receiver, void * receiver_baton,
+                svn_depth_t depth, const apr_array_header_t * changelists,
+                svn_client_ctx_t * ctx, apr_pool_t * pool)
+    IF SVN_API_VER >= (1, 2):
+        svn_error_t * svn_client_info(
+                const char * path_or_url,
+                const svn_opt_revision_t * peg_revision,
+                const svn_opt_revision_t * revision,
+                svn_info_receiver_t receiver, void * receiver_baton,
                 svn_boolean_t recurse, svn_client_ctx_t * ctx,
                 apr_pool_t * pool)
