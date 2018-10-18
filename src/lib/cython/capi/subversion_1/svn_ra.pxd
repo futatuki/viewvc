@@ -2,6 +2,7 @@ include "_svn_api_ver.pxi"
 from apr_1.apr cimport apr_off_t
 from apr_1.apr_pools cimport apr_pool_t
 from apr_1.apr_hash cimport apr_hash_t
+from apr_1.apr_tables cimport apr_array_header_t
 from apr_1.apr_file_io cimport apr_file_t
 from subversion_1.svn_types cimport *
 from subversion_1.svn_auth cimport svn_auth_baton_t
@@ -123,6 +124,11 @@ cdef extern from "svn_ra.h" nogil:
                 svn_ra_session_t * session, const char * path,
                   svn_revnum_t revision, svn_node_kind_t * kind,
                   apr_pool_t * pool)
+    svn_error_t * svn_ra_get_locations(
+                svn_ra_session_t * session, apr_hash_t ** locations,
+                const char * path, svn_revnum_t peg_revision,
+                const apr_array_header_t * location_revisions,
+                apr_pool_t * pool)
     svn_error_t * svn_ra_get_latest_revnum(
             svn_ra_session_t * session, svn_revnum_t * latest_revnum,
             apr_pool_t * pool)

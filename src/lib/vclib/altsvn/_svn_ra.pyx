@@ -88,6 +88,44 @@ def svn_ra_check_path(
     return _c_kind
 
 
+def svn_ra_get_locations(
+        svn_ra_session_t session, const char * _c_path,
+        _c_.svn_revnum_t _c_peg_revision, object location_revisions,
+        object scratch_pool):
+    cdef _svn.Apr_Pool tmp_pool
+    cdef _c_.apr_array_header_t *_c_location_revisions
+    cdef _svn.SvnRevnumPtrTrans revtrans
+    cdef _svn.CStringTransBytes transbytes
+    cdef _svn.HashTrans loctrans
+    cdef _c_.svn_error_t * serr
+    cdef _svn.Svn_error pyerr
+    cdef object locations
+
+    if scratch_pool is not None:
+        assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
+        tmp_pool = _svn.Apr_Pool(scratch_pool)
+    else:
+        tmp_pool = _svn.Apr_Pool(_svn._scratch_pool)
+    try:
+        _c_location_revisions = _svn.make_revnum_array(location_revisions,
+                                                       tmp_pool._c_pool)
+        loctrans = _svn.HashTrans(_svn.SvnRevnumPtrTrans(),
+                                  _svn.CStringTransBytes(),
+                                  tmp_pool)
+        serr = _c_.svn_ra_get_locations(
+                    session._c_session,
+                    <_c_.apr_hash_t **>(loctrans.ptr_ref()),
+                    _c_path, _c_peg_revision, _c_location_revisions,
+                    tmp_pool._c_pool)
+        if serr is not NULL:
+            pyerr = _svn.Svn_error().seterror(serr)
+            raise _svn.SVNerr(pyerr)
+        locations = loctrans.to_object()
+    finally:
+        del tmp_pool
+    return locations
+
+
 cdef class svn_client_ctx_t(object):
     # cdef _c_.svn_client_ctx_t * _c_ctx
     # cdef _svn.Apr_Pool pool

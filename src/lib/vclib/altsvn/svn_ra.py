@@ -26,7 +26,7 @@ from ._svn import canonicalize_path
 from svn_repos import Revision, SVNChangedPath, FileContentsPipe\
                       _compare_paths, _path_parts, _cleanup_path, \
                       _split_revprops
-#from svn import core, client, ra
+#from svn import client
 
 
 ### Require Subversion 1.3.1 or better. (for svn_ra_get_locations support)
@@ -575,10 +575,10 @@ class RemoteSubversionRepository(vclib.Repository):
         # svn_log_changed_path_t is without.
         text_modified = props_modified = 0
         if hasattr(change, 'text_modified'):
-          if change.text_modified == core.svn_tristate_true:
+          if change.text_modified == _svn.svn_tristate_true:
             text_modified = 1
         if hasattr(change, 'props_modified'):
-          if change.props_modified == core.svn_tristate_true:
+          if change.props_modified == _svn.svn_tristate_true:
             props_modified = 1
 
         # Wrong, diddily wrong wrong wrong.  Can you say,
@@ -660,10 +660,10 @@ class RemoteSubversionRepository(vclib.Repository):
 
   def get_location(self, path, rev, old_rev):
     try:
-      results = ra.get_locations(self.ra_session, path, rev, [old_rev])
-    except core.SubversionException, e:
-      _fix_subversion_exception(e)
-      if e.apr_err == core.SVN_ERR_FS_NOT_FOUND:
+      results = _svn_ra.svn_get_locations(
+                      self.ra_session, path, rev, [old_rev], self.scratch_pool)
+    except _svn.SVNerr, e:
+      if e.get_code() == _svn.SVN_ERR_FS_NOT_FOUND:
         raise vclib.ItemNotFound(path)
       raise
     try:
@@ -731,7 +731,7 @@ class RemoteSubversionRepository(vclib.Repository):
     pairs = client.svn_client_proplist2(url, _rev2optrev(rev),
                                         _rev2optrev(rev), 0, self.ctx)
     props = pairs and pairs[0][1] or {}
-    if not props.has_key(core.SVN_PROP_SPECIAL):
+    if not props.has_key(_svn.SVN_PROP_SPECIAL):
       return None
     pathspec = ''
     ### FIXME: We're being a touch sloppy here, first by grabbing the
