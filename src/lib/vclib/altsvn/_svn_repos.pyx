@@ -913,33 +913,6 @@ cdef _c_.svn_error_t * _cb_svn_repos_authz_func_wrapper(
                     _c_.SVN_ERR_BASE, NULL, str(err))
     return _c_err
 
-cdef _c_.apr_array_header_t * _make_revnum_array(
-        object revisions, _c_.apr_pool_t * pool) except? NULL:
-    cdef _c_.apr_array_header_t * _c_arrayptr
-    cdef _svn.Svn_error pyerr
-    cdef object rev
-    cdef const char *strptr
-    cdef int nelts
-
-    nelts = len(revisions)
-    _c_arrayptr = _c_.apr_array_make(pool, nelts, sizeof(_c_.svn_revnum_t))
-    if _c_arrayptr is NULL:
-        _c_err = _c_.svn_error_create(_c_.APR_ENOMEM, NULL, NULL)
-        pyerr = _svn.Svn_error().seterror(_c_err)
-        raise _svn.SVNerr(pyerr)
-    for rev in revisions:
-        (<_c_.svn_revnum_t *>(_c_.apr_array_push(_c_arrayptr)))[0] = rev
-    return _c_arrayptr
-
-
-cdef class SvnRevnumPtrTrans(_svn.TransPtr):
-    cdef _c_.svn_revnum_t * _c_revptr
-    cdef object to_object(self):
-        return <object>((self._c_revptr)[0])
-    cdef void set_c_revptr(self, _c_.svn_revnum_t * _c_revptr):
-        self._c_revptr = _c_revptr
-    cdef void ** ptr_ref(self):
-        return <void **>&(self._c_revptr)
 
 def svn_repos_trace_node_locations(
         svn_fs_t fs, const char * fs_path, _c_.svn_revnum_t peg_revision,
@@ -949,8 +922,7 @@ def svn_repos_trace_node_locations(
     cdef _svn.Apr_Pool tmp_pool
     cdef _c_.apr_array_header_t * _c_location_rivisions
     cdef _svn.CbContainer btn
-    cdef _c_.apr_hash_t _c_locations
-    cdef SvnRevnumPtrTrans revtrans
+    cdef _svn.SvnRevnumPtrTrans revtrans
     cdef _svn.CStringTransBytes transbytes
     cdef _svn.HashTrans loctrans
     cdef _c_.svn_error_t * serr
@@ -963,10 +935,10 @@ def svn_repos_trace_node_locations(
     else:
         tmp_pool = _svn.Apr_Pool(_svn._scratch_pool)
     try:
-        _c_location_revisions = _make_revnum_array(location_revisions,
-                                                   tmp_pool._c_pool)
+        _c_location_revisions = _svn.make_revnum_array(location_revisions,
+                                                       tmp_pool._c_pool)
         btn = _svn.CbContainer(authz_read_func, authz_read_baton, tmp_pool)
-        loctrans = _svn.HashTrans(SvnRevnumPtrTrans(),
+        loctrans = _svn.HashTrans(_svn.SvnRevnumPtrTrans(),
                                   _svn.CStringTransBytes(),
                                   tmp_pool)
         serr = _c_.svn_repos_trace_node_locations(

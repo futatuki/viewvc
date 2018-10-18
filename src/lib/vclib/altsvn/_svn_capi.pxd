@@ -5,6 +5,7 @@ from apr_1.apr_general cimport *
 from apr_1.apr_pools cimport *
 from apr_1.apr_time cimport *
 from apr_1.apr_hash cimport *
+from apr_1.apr_tables cimport *
 IF SVN_API_VER < (1, 6):
     from apr_1.apr_file_io cimport *
 from subversion_1.svn_types cimport *

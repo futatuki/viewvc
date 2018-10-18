@@ -202,6 +202,11 @@ SVN_INVALID_REVNUM = _c_.SVN_INVALID_REVNUM
 SVN_IGNORED_REVNUM = _c_.SVN_IGNORED_REVNUM
 SVN_STREAM_CHUNK_SIZE = _c_.SVN_STREAM_CHUNK_SIZE
 
+# from "svn_types.h" svn_tristate_t
+svn_tristate_false   = _c_.svn_tristate_false
+svn_tristate_true    = _c_.svn_tristate_true
+svn_tristate_unknown = _c_.svn_tristate_unknown
+
 # from "svn_types.h" svn_node_kind_t
 svn_node_none    = _c_.svn_node_none
 svn_node_file    = _c_.svn_node_file
@@ -947,6 +952,34 @@ cdef class SvnBooleanTrans(TransPtr):
         self._c_bool = _c_bool
     cdef void ** ptr_ref(self):
         return <void **>&(self._c_bool)
+
+
+cdef _c_.apr_array_header_t * make_revnum_array(
+        object revisions, _c_.apr_pool_t * pool) except? NULL:
+    cdef _c_.apr_array_header_t * _c_arrayptr
+    cdef Svn_error pyerr
+    cdef object rev
+    cdef const char *strptr
+    cdef int nelts
+
+    nelts = len(revisions)
+    _c_arrayptr = _c_.apr_array_make(pool, nelts, sizeof(_c_.svn_revnum_t))
+    if _c_arrayptr is NULL:
+        _c_err = _c_.svn_error_create(_c_.APR_ENOMEM, NULL, NULL)
+        pyerr = Svn_error().seterror(_c_err)
+        raise SVNerr(pyerr)
+    for rev in revisions:
+        (<_c_.svn_revnum_t *>(_c_.apr_array_push(_c_arrayptr)))[0] = rev
+    return _c_arrayptr
+
+
+cdef class SvnRevnumPtrTrans(TransPtr):
+    cdef object to_object(self):
+        return <object>((self._c_revptr)[0])
+    cdef void set_c_revptr(self, _c_.svn_revnum_t * _c_revptr):
+        self._c_revptr = _c_revptr
+    cdef void ** ptr_ref(self):
+        return <void **>&(self._c_revptr)
 
 
 # for test, not used by vclib modules
