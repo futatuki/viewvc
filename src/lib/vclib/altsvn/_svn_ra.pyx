@@ -570,6 +570,55 @@ def svn_client_cat(
     return props
 
 
+# helper function to convert Python list of bytes to apr_array of C string
+cdef _c_.apr_array_header_t * _bytes_list_to_apr_array(
+            object byteslist, _c_.apr_pool_t *pool) except? NULL:
+    cdef _c_.apr_array_header_t * _c_arrayptr
+    cdef object elmstr
+    cdef const char * bytesptr
+    cdef int nelts
+    try:
+        nelts = len(byteslist)
+    except TypeError:
+        raise TypeError("Argment 'lists' must be sequence of bytes")
+    _c_arrayptr = _c_.apr_array_make(pool, nelts, sizeof(char *))
+    if _c_arrayptr is NULL:
+        raise _svn.PoolError('fail to allocate memory from pool')
+    for elmstr in byteslist:
+        assert isinstance(elmstr, bytes)
+        # To do: make copies for each elmstr for safe. othewise, we must
+        # destroy the array pointed by _c_arrayptr before delete or
+        # modify byteslist.
+        bytesptr = elmstr
+        (<void**>(_c_.apr_array_push(_c_arrayptr)))[0] = (
+                 <void*>bytesptr)
+    return _c_arrayptr
+
+
+cdef _c_.apr_array_header_t * _revrange_list_to_apr_array(
+            object range_list, _c_.apr_pool_t *pool) except? NULL:
+    cdef _c_.apr_array_header_t * _c_arrayptr
+    cdef _svn.svn_opt_revision_range_t elmrange
+    cdef int nelts
+    try:
+        nelts = len(range_list)
+    except TypeError:
+        raise TypeError("Argment 'lists' must be sequence of "
+                        "svn_opt_revision_range_t")
+    _c_arrayptr = _c_.apr_array_make(pool, nelts,
+                                     sizeof(_c_.svn_opt_revision_range_t *))
+    if _c_arrayptr is NULL:
+        raise _svn.PoolError('fail to allocate memory from pool')
+    for elmrange in range_list:
+        # To do: make copies for each elmrange for safe. othewise, we must
+        # destroy the array pointed by _c_arrayptr before delete or
+        # modify range_list.
+        (<void**>(_c_.apr_array_push(_c_arrayptr)))[0] = (
+                 <void*>&((<_svn.svn_opt_revision_range_t?>elmrange)._c_range))
+    return _c_arrayptr
+
+
+# call back function for svn_client_info*() used in get_last_changed_rev
 IF SVN_API_VER >= (1, 7):
     cdef _c_.svn_error_t * _cb_get_last_change_rev(
             void * _c_baton, const char * abspath_or_url,
@@ -588,14 +637,44 @@ ELSE:
         btn.append(info.last_changed_rev)
         return NULL
 
-def get_last_changed_rev(
+
+# call back function for svn_client_log*() used in get_last_changed_rev
+IF SVN_API_VER >= (1, 5):
+    # svn_log_entry_receiver_t signature
+    cdef _c_.svn_error_t * _cb_get_last_changed_log_rev(
+            void * _c_baton, _c_.svn_log_entry_t *_c_log_entry,
+            _c_.apr_pool_t * _c_pool) with gil:
+        cdef list lcrevs
+        lcrevs = <list>_c_baton
+        lcrevs.append(_c_log_entry[0].revision)
+        return NULL
+ELSE:
+    # svn_log_message_receiver_t signature
+    cdef _c_.svn_error_t * _cb_get_last_changed_log_rev(
+            void * _c_baton, _c_.apr_hash_t * _c_changed_paths,
+            _c_.svn_revnum_t _c_revision, const char * _c_author,
+            const char * _c_date, const char * _c_message,
+            _c_.apr_pool_t * pool) with gil:
+        cdef list lcrevs
+        lcrevs = <list>_c_baton
+        lcrevs.append(_c_revision)
+        return NULL
+
+def get_last_history_rev(
         const char * url, _c_.svn_revnum_t rev, svn_client_ctx_t ctx,
         object scratch_pool=None):
     cdef _svn.Apr_Pool tmp_pool
     cdef _svn.svn_opt_revision_t opt_rev
     cdef list rev_list
+    cdef _svn.svn_opt_revision_t opt_lc_rev
     cdef _c_.svn_error_t * serr
     cdef _svn.Svn_error pyerr
+    cdef list targets
+    cdef _c_.apr_array_header_t * _c_targets
+    cdef list rev_ranges
+    cdef _c_.apr_array_header_t * _c_rev_ranges
+    cdef _c_.apr_array_header_t * _c_revprops
+    cdef list lcrevs
 
     opt_rev = _svn.svn_opt_revision_t(_c_.svn_opt_revision_number, rev)
     if scratch_pool is not None:
@@ -604,6 +683,8 @@ def get_last_changed_rev(
     else:
         tmp_pool = _svn.Apr_Pool(_svn._scratch_pool)
     rev_list = []
+    lcrevs = []
+    _c_targets = NULL
     try:
         IF SVN_API_VER >= (1, 9):
             serr = _c_.svn_client_info4(
@@ -635,6 +716,62 @@ def get_last_changed_rev(
         if serr is not NULL:
             pyerr = _svn.Svn_error().seterror(serr)
             raise _svn.SVNerr(pyerr)
+        # now we can get lastest revision that the object was modified its
+        # text or properties, however it might have been modified the
+        # path (i.e. copied from somewhere.) To detect such the latest
+        # action and its revision only, call back of LogCollector are
+        # too complex. So we can use simple call back that hold revision.
+        opt_lc_rev = _svn.svn_opt_revision_t(_c_.svn_opt_revision_number,
+                                             rev_list[0])
+        targets = [url]
+        _c_targets = _bytes_list_to_apr_array(targets, tmp_pool._c_pool)
+        IF SVN_API_VER >= (1, 4):
+            # we don't need any revision props.
+            _c_rev_props = _c_.apr_array_make(tmp_pool._c_pool, 0,
+                                              sizeof(const char *))
+        IF SVN_API_VER >= (1, 6):
+            rev_ranges = [_svn.svn_opt_revision_range_t(opt_rev, opt_lc_rev)]
+            _c_rev_ranges = _revrange_list_to_apr_array(
+                                    rev_ranges, tmp_pool._c_pool)
+            serr = _c_.svn_client_log5(
+                        _c_targets, &(opt_rev._c_opt_revision),
+                        _c_rev_ranges, 1, _c_.TRUE, _c_.FALSE,
+                        _c_.FALSE, _c_rev_props,
+                        _cb_get_last_changed_log_rev, <void *>lcrevs,
+                        ctx._c_ctx, tmp_pool._c_pool)
+        ELIF SVN_API_VER >= (1, 5):
+            serr = _c_.svn_client_log4(
+                        _c_targets, &(opt_rev._c_opt_revision),
+                        opt_rev, opt_lc_rev, 1, _c_.TRUE, _c_.FALSE,
+                        _c_.FALSE, _c_rev_props,
+                        _cb_get_last_changed_log_rev, <void *>lcrevs,
+                        ctx._c_ctx, tmp_pool._c_pool)
+        ELIF SVN_API_VER >= (1, 4):
+            serr = _c_.svn_client_log3(
+                        _c_targets, &(opt_rev._c_opt_revision),
+                        opt_rev, opt_lc_rev, 1, _c_.TRUE, _c_.FALSE,
+                        _cb_get_last_changed_log_rev, <void *>lcrevs,
+                        ctx._c_ctx, tmp_pool._c_pool)
+        ELSE:
+            serr = _c_.svn_client_log2(
+                        _c_targets, &(opt_rev._c_opt_revision),
+                        opt_rev, opt_lc_rev, 1, _c_.TRUE, _c_.FALSE,
+                        _cb_get_last_changed_log_rev, <void *>lcrevs,
+                        ctx._c_ctx, tmp_pool._c_pool)
     finally:
+        IF SVN_API_VER >= (1, 6):
+            if _c_rev_ranges is not NULL:
+                _c_.apr_array_clear(_c_rev_ranges)
+                _c_rev_ranges = NULL
+        IF SVN_API_VER >= (1, 5):
+            if _c_rev_props is not NULL:
+                _c_.apr_array_clear(_c_rev_props)
+                _c_rev_props = NULL
+        if _c_targets is not NULL:
+            _c_.apr_array_clear(_c_targets)
+            _c_targets = NULL
         del tmp_pool
-    return rev_list[0]
+    if lcrevs:
+        return lcrevs[0], rev_list[0]
+    else:
+        return rev_list[0], rev_list[0]

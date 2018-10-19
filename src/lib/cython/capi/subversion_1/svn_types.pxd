@@ -1,6 +1,7 @@
 from apr_1.apr cimport apr_int64_t
 from apr_1.apr_errno cimport apr_status_t
 from apr_1.apr_pools cimport apr_pool_t
+from apr_1.apr_hash cimport apr_hash_t
 from apr_1.apr_time cimport apr_time_t
 
 include "_svn_api_ver.pxi"
@@ -21,11 +22,11 @@ cdef extern from "svn_types.h" nogil:
 
     IF SVN_API_VER >= (1, 8):
         ctypedef enum svn_node_kind_t:
-            svn_node_none, svn_node_file, svn_node_dir, 
+            svn_node_none, svn_node_file, svn_node_dir,
             svn_node_unknown, svn_node_symlink
     ELSE:
         ctypedef enum svn_node_kind_t:
-            svn_node_none, svn_node_file, svn_node_dir, 
+            svn_node_none, svn_node_file, svn_node_dir,
             svn_node_unknown
     IF SVN_API_VER >= (1, 6):
         const char * svn_node_kind_to_word(svn_node_kind_t kind)
@@ -40,7 +41,7 @@ cdef extern from "svn_types.h" nogil:
     enum: SVN_IGNORED_REVNUM
     IF SVN_API_VER >= (1, 5):
         svn_error_t * svn_revnum_parse(svn_revnum_t *rev,
-                                       const char *str, 
+                                       const char *str,
                                        const char **endptr)
     ctypedef apr_int64_t svn_filesize_t
     enum: SVN_INVALID_FILESIZE
@@ -72,6 +73,36 @@ cdef extern from "svn_types.h" nogil:
     enum: SVN_DIRENT_LAST_AUTHOR
     enum: SVN_DIRENT_ALL
     enum: SVN_STREAM_CHUNK_SIZE
+    IF SVN_API_VER >= (1, 7):
+        ctypedef struct svn_log_entry_t:
+            apr_hash_t * changed_paths
+            svn_revnum_t revision
+            apr_hash_t * revprops
+            svn_boolean_t has_children
+            apr_hash_t * changed_paths2
+            svn_boolean_t non_inheritable
+            svn_boolean_t subtractive_merge
+    ELIF SVN_API_VER >= (1, 6):
+        ctypedef struct svn_log_entry_t:
+            apr_hash_t * changed_paths
+            svn_revnum_t revision
+            apr_hash_t * revprops
+            svn_boolean_t has_children
+            apr_hash_t * changed_paths2
+    ELIF SVN_API_VER >= (1, 5):
+        ctypedef struct svn_log_entry_t:
+            apr_hash_t * changed_paths
+            svn_revnum_t revision
+            apr_hash_t * revprops
+            svn_boolean_t has_children
+    IF SVN_API_VER >= (1, 5):
+        ctypedef svn_error_t * (* svn_log_entry_receiver_t)(
+                void * baton, svn_log_entry_t * log_entry, apr_pool_t * pool)
+    ctypedef svn_error_t * (* svn_log_message_receiver_t)(
+            void * baton, apr_hash_t * changed_paths, svn_revnum_t revision,
+            const char * author, const char * date, const char * message,
+            apr_pool_t * pool)
+
     ctypedef svn_error_t * (* svn_cancel_func_t)(void * cancel_baton)
     IF SVN_API_VER >= (1, 2):
         ctypedef struct svn_lock_t:

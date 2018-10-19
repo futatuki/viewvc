@@ -2,6 +2,7 @@ include "_svn_api_ver.pxi"
 include "_py_ver.pxi"
 from libc.stdlib cimport atexit
 from libc.stddef cimport size_t
+from libc.string cimport memcpy
 from cpython cimport Py_buffer
 from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
 cimport _svn_capi as _c_
@@ -368,6 +369,22 @@ cdef class svn_opt_revision_t(object):
             raise ValueError('unknown svn_opt_revision_kind "'
                              + str(self._c_opt_revision.kind)
                              + '" has set')
+
+
+# only for placeholder used by svn_client_log*()
+cdef class svn_opt_revision_range_t(object):
+    def __cinit__(self, start, end, **m):
+        self._c_range.start.kind = _c_.svn_opt_revision_unspecified
+        self._c_range.start.value.number = 0
+        self._c_range.end.kind = _c_.svn_opt_revision_unspecified
+        self._c_range.end.value.number = 0
+    def __init__(self, start, end, **m):
+        memcpy(<void *>&(self._c_range.start),
+               <void *>&((<svn_opt_revision_t?>start)._c_opt_revision),
+               sizeof(self._c_range.start))
+        memcpy(<void *>&(self._c_range.end),
+               <void *>&((<svn_opt_revision_t?>end)._c_opt_revision),
+               sizeof(self._c_range.end))
 
 def canonicalize_path(path, scratch_pool=None):
     cdef _c_.apr_status_t ast

@@ -22,6 +22,9 @@ cdef class svn_opt_revision_t(object):
     cdef _c_.svn_opt_revision_t _c_opt_revision
     cdef svn_opt_revision_t _c_set(self, _c_.svn_opt_revision_t _c_rev)
 
+cdef class svn_opt_revision_range_t(object):
+    cdef _c_.svn_opt_revision_range_t _c_range
+
 cdef class svn_stream_t(object):
     cdef _c_.svn_stream_t * _c_ptr
     cdef Apr_Pool pool

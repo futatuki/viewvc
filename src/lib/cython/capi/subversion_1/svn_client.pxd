@@ -120,6 +120,51 @@ cdef extern from "svn_client.h" nogil:
             svn_client_blame_receiver_t receiver, void * receiver_baton,
             svn_client_ctx_t * ctx, apr_pool_t * pool)
 
+    IF SVN_API_VER >= (1, 6):
+        svn_error_t * svn_client_log5(
+                const apr_array_header_t * targets,
+                const svn_opt_revision_t * peg_revision,
+                const apr_array_header_t * revision_ranges,
+                int limit, svn_boolean_t discover_changed_paths,
+                svn_boolean_t strict_node_history,
+                svn_boolean_t include_merged_revisions,
+                const apr_array_header_t * revprops,
+                svn_log_entry_receiver_t receiver,
+                void * receiver_baton, svn_client_ctx_t * ctx,
+                apr_pool_t * pool)
+    IF SVN_API_VER >= (1, 5):
+        svn_error_t * svn_client_log4(
+                const apr_array_header_t * targets,
+                const svn_opt_revision_t * peg_revision,
+                const svn_opt_revision_t * start,
+                const svn_opt_revision_t * end,
+                int limit, svn_boolean_t discover_changed_paths,
+                svn_boolean_t strict_node_history,
+                svn_boolean_t include_merged_revisions,
+                const apr_array_header_t * revprops,
+                svn_log_entry_receiver_t receiver,
+                void * receiver_baton, svn_client_ctx_t * ctx,
+                apr_pool_t * pool)
+    IF SVN_API_VER >= (1, 4):
+        svn_error_t * svn_client_log3(
+                const apr_array_header_t * targets,
+                const svn_opt_revision_t * peg_revision,
+                const svn_opt_revision_t * start,
+                const svn_opt_revision_t * end,
+                int limit, svn_boolean_t discover_changed_paths,
+                svn_boolean_t strict_node_history,
+                svn_log_message_receiver_t receiver,
+                void * receiver_baton, svn_client_ctx_t * ctx,
+                apr_pool_t * pool)
+    svn_error_t * svn_client_log2(
+            const apr_array_header_t * targets,
+            const svn_opt_revision_t * start,
+            const svn_opt_revision_t * end,
+            int limit, svn_boolean_t discover_changed_paths,
+            svn_boolean_t strict_node_history,
+            svn_log_message_receiver_t receiver,
+            void * receiver_baton, svn_client_ctx_t * ctx, apr_pool_t * pool)
+
     IF SVN_API_VER >= (1, 8):
         ctypedef svn_error_t * (* svn_client_list_func2_t)(
                 void * baton, const char * path, const svn_dirent_t * dirent,

@@ -503,22 +503,8 @@ class RemoteSubversionRepository(vclib.Repository):
     url = self._geturl(self._getpath(path_parts))
 
     # Get the last-changed-rev.
-    last_changed_rev = _svn_ra.get_last_changed_rev(
+    return _svn_ra.get_last_history_rev(
                                 url, rev, self.ctx, self.scratch_pool)
-
-    # Now, this object might not have been directly edited since the
-    # last-changed-rev, but it might have been the child of a copy.
-    # To determine this, we'll run a potentially no-op log between
-    # LAST_CHANGED_REV and REV.
-    lc = LogCollector(path, 1, None, None)
-    client_log(url, optrev, _rev2optrev(last_changed_rev), 1, 1, 0,
-               lc.add_log, self.ctx)
-    revs = lc.logs
-    if revs:
-      revs.sort()
-      return revs[0].number, last_changed_rev
-    else:
-      return last_changed_rev, last_changed_rev
 
   def _revinfo_fetch(self, rev, include_changed_paths=0):
     need_changes = include_changed_paths or self.auth
