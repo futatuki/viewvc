@@ -17,9 +17,8 @@ import os
 import os.path
 import io
 import tempfile
-from . import _svn
-from . import _svn_repos
-from . import _norm
+from . import _svn, _svn_repos, _norm, _path_parts, _cleanup_path,\
+              _compare_paths, _split_revprops, Revision, SVNChangedPath
 
 ### Require Subversion 1.3.1 or better.
 if (_svn.SVN_VER_MAJOR, _svn.SVN_VER_MINOR, _svn.SVN_VER_PATCH) < (1, 3, 1):
@@ -29,86 +28,8 @@ def _allow_all(root, path, baton, pool):
   """Generic authz_read_func that permits access to all paths"""
   return 1
 
-def _path_parts(path):
-  return filter(None, path.split(b'/'))
-
-
-def _cleanup_path(path):
-  """Return a cleaned-up Subversion filesystem path"""
-  return b'/'.join(_path_parts(path))
-
-
 def _fs_path_join(base, relative):
   return _cleanup_path(base + b'/' + relative)
-
-
-def _compare_paths(path1, path2):
-  path1_len = len (path1);
-  path2_len = len (path2);
-  min_len = min(path1_len, path2_len)
-  i = 0
-
-  # Are the paths exactly the same?
-  if path1 == path2:
-    return 0
-
-  # Skip past common prefix
-  while (i < min_len) and (path1[i] == path2[i]):
-    i = i + 1
-
-  # Children of paths are greater than their parents, but less than
-  # greater siblings of their parents
-  char1 = b'\0'
-  char2 = b'\0'
-  if (i < path1_len):
-    char1 = path1[i:i+1]
-  if (i < path2_len):
-    char2 = path2[i:i+1]
-
-  if (char1 == b'/') and (i == path2_len):
-    return 1
-  if (char2 == b'/') and (i == path1_len):
-    return -1
-  if (i < path1_len) and (char1 == b'/'):
-    return -1
-  if (i < path2_len) and (char2 == b'/'):
-    return 1
-
-  # Common prefix was skipped above, next character is compared to
-  # determine order
-  return cmp(char1, char2)
-
-
-# Given a dictionary REVPROPS of revision properties, pull special
-# ones out of them and return a 4-tuple containing the log message,
-# the author, the date (converted from the date string property), and
-# a dictionary of any/all other revprops.
-def _split_revprops(revprops, scratch_pool=None):
-  if not revprops:
-    return None, None, None, {}
-  special_props = []
-  for prop in _svn.SVN_PROP_REVISION_LOG, \
-              _svn.SVN_PROP_REVISION_AUTHOR, \
-              _svn.SVN_PROP_REVISION_DATE:
-    if revprops.has_key(prop):
-      special_props.append(revprops[prop])
-      del(revprops[prop])
-    else:
-      special_props.append(None)
-  msg, author, datestr = tuple(special_props)
-  date = _svn.datestr_to_date(datestr, scratch_pool)
-  return msg, author, date, revprops
-
-
-class Revision(vclib.Revision):
-  "Hold state for each revision's log entry."
-  def __init__(self, rev, date, author, msg, size, lockinfo,
-               filename, copy_path, copy_rev):
-    vclib.Revision.__init__(self, rev, str(rev), date, author, None,
-                            msg, size, lockinfo)
-    self.filename = filename
-    self.copy_path = copy_path
-    self.copy_rev = copy_rev
 
 
 def _get_last_history_rev(fsroot, path, scratch_pool=None):
@@ -119,6 +40,7 @@ def _get_last_history_rev(fsroot, path, scratch_pool=None):
   history_path, history_rev = _svn_repos.svn_fs_history_location(
                                 history, scratch_pool)
   return history_rev
+
 
 def temp_checkout(svnrepos, path, rev, scratch_pool=None):
   """Check out file revision to temporary file"""
@@ -196,18 +118,6 @@ class FileContentsPipe:
 
   def eof(self):
     return self._eof
-
-
-class SVNChangedPath(vclib.ChangedPath):
-  """Wrapper around vclib.ChangedPath which handles path splitting."""
-
-  def __init__(self, path, rev, pathtype, base_path, base_rev,
-               action, copied, text_changed, props_changed):
-    path_parts = _path_parts(path or b'')
-    base_path_parts = _path_parts(base_path or b'')
-    vclib.ChangedPath.__init__(self, path_parts, rev, pathtype,
-                               base_path_parts, base_rev, action,
-                               copied, text_changed, props_changed)
 
 
 class LocalSubversionRepository(vclib.Repository):

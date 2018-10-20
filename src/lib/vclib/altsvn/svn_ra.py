@@ -19,13 +19,8 @@ import io
 import re
 import tempfile
 import urllib
-from . import _svn
-from . import _svn_ra
-from . import _norm
-from ._svn import canonicalize_path
-from svn_repos import Revision, SVNChangedPath, FileContentsPipe\
-                      _compare_paths, _path_parts, _cleanup_path, \
-                      _split_revprops
+from . import _svn, _svn_ra, _norm, _path_parts, _cleanup_path,\
+              _compare_paths, _split_revprops, Revision, SVNChangedPath
 #from svn import client
 
 
@@ -241,7 +236,7 @@ class RemoteSubversionRepository(vclib.Repository):
   def listdir(self, path_parts, rev, options):
     path = self._getpath(path_parts)
     if self.itemtype(path_parts, rev) != vclib.DIR:  # does auth-check
-      raise vclib.Error("Path '%s' is not a directory." % path)
+      raise vclib.Error("Path '%s' is not a directory." % _norm(path))
     rev = self._getrev(rev)
     entries = []
     dirents, locks = self._get_dirents(path, rev)
@@ -259,7 +254,7 @@ class RemoteSubversionRepository(vclib.Repository):
   def dirlogs(self, path_parts, rev, entries, options):
     path = self._getpath(path_parts)
     if self.itemtype(path_parts, rev) != vclib.DIR:  # does auth-check
-      raise vclib.Error("Path '%s' is not a directory." % path)
+      raise vclib.Error("Path '%s' is not a directory." % _norm(path))
     rev = self._getrev(rev)
     dirents, locks = self._get_dirents(path, rev)
     for entry in entries:
