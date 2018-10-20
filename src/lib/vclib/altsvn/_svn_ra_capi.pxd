@@ -6,6 +6,7 @@ from apr_1.apr_hash cimport *
 from apr_1.apr_tables cimport *
 from subversion_1.svn_types cimport *
 from subversion_1.svn_error cimport *
+from subversion_1.svn_error_codes cimport *
 from subversion_1.svn_config cimport *
 from subversion_1.svn_auth cimport *
 from subversion_1.svn_opt cimport *

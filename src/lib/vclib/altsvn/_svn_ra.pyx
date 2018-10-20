@@ -623,18 +623,30 @@ IF SVN_API_VER >= (1, 7):
     cdef _c_.svn_error_t * _cb_get_last_change_rev(
             void * _c_baton, const char * abspath_or_url,
             const _c_.svn_client_info2_t * info,
-            _c_.apr_pool_t * scratch_pool) with gil:
-        cdef object btn
-        btn = <object>_c_baton
-        btn.append(info.last_changed_rev)
+            _c_.apr_pool_t * scratch_pool) nogil:
+
+        if (<_c_.svn_revnum_t *>_c_baton)[0] != _c_.SVN_INVALID_REVNUM:
+            _c_err = _c_.svn_error_create(
+                            _c_.SVN_ERR_ASSERTION_FAIL, NULL,
+                            "_cb_get_last_changed_rev has been called "
+                            "more than once")
+            return _c_err
+
+        (<_c_.svn_revnum_t *>_c_baton)[0] = info[0].last_changed_rev
         return NULL
 ELSE:
     cdef _cb_get_last_change_rev(
             void * _c_baton, const char * path, const _c_.svn_info_t * info,
-            _c_.apr_pool_t * pool) with gil:
-        cdef object btn
-        btn = <object>_c_baton
-        btn.append(info.last_changed_rev)
+            _c_.apr_pool_t * pool) nogil:
+
+        if (<_c_.svn_revnum_t *>_c_baton)[0] != _c_.SVN_INVALID_REVNUM:
+            _c_err = _c_.svn_error_create(
+                            _c_.SVN_ERR_ASSERTION_FAIL, NULL,
+                            "_cb_get_last_changed_rev has been called "
+                            "more than once")
+            return _c_err
+
+        (<_c_.svn_revnum_t *>_c_baton)[0] = info[0].last_changed_rev
         return NULL
 
 
@@ -643,10 +655,17 @@ IF SVN_API_VER >= (1, 5):
     # svn_log_entry_receiver_t signature
     cdef _c_.svn_error_t * _cb_get_last_changed_log_rev(
             void * _c_baton, _c_.svn_log_entry_t *_c_log_entry,
-            _c_.apr_pool_t * _c_pool) with gil:
-        cdef list lcrevs
-        lcrevs = <list>_c_baton
-        lcrevs.append(_c_log_entry[0].revision)
+            _c_.apr_pool_t * _c_pool) nogil:
+        cdef _c_.svn_error_t * _c_err
+
+        if (<_c_.svn_revnum_t *>_c_baton)[0] != _c_.SVN_INVALID_REVNUM:
+            _c_err = _c_.svn_error_create(
+                            _c_.SVN_ERR_ASSERTION_FAIL, NULL,
+                            "_cb_get_last_changed_log_rev has been called "
+                            "more than once")
+            return _c_err
+
+        (<_c_.svn_revnum_t *>_c_baton)[0] = _c_log_entry[0].revision
         return NULL
 ELSE:
     # svn_log_message_receiver_t signature
@@ -654,10 +673,17 @@ ELSE:
             void * _c_baton, _c_.apr_hash_t * _c_changed_paths,
             _c_.svn_revnum_t _c_revision, const char * _c_author,
             const char * _c_date, const char * _c_message,
-            _c_.apr_pool_t * pool) with gil:
-        cdef list lcrevs
-        lcrevs = <list>_c_baton
-        lcrevs.append(_c_revision)
+            _c_.apr_pool_t * pool) nogil:
+        cdef _c_.svn_error_t * _c_err
+
+        if (<_c_.svn_revnum_t *>_c_baton)[0] != _c_.SVN_INVALID_REVNUM:
+            _c_err = _c_.svn_error_create(
+                            _c_.SVN_ERR_ASSERTION_FAIL, NULL,
+                            "_cb_get_last_changed_log_rev has been called "
+                            "more than once")
+            return _c_err
+
+        (<_c_.svn_revnum_t *>_c_baton)[0] = _c_revision
         return NULL
 
 def get_last_history_rev(
@@ -665,7 +691,7 @@ def get_last_history_rev(
         object scratch_pool=None):
     cdef _svn.Apr_Pool tmp_pool
     cdef _svn.svn_opt_revision_t opt_rev
-    cdef list rev_list
+    cdef _c_.svn_revnum_t lcrev
     cdef _svn.svn_opt_revision_t opt_lc_rev
     cdef _c_.svn_error_t * serr
     cdef _svn.Svn_error pyerr
@@ -674,7 +700,7 @@ def get_last_history_rev(
     cdef list rev_ranges
     cdef _c_.apr_array_header_t * _c_rev_ranges
     cdef _c_.apr_array_header_t * _c_revprops
-    cdef list lcrevs
+    cdef _c_.svn_revnum_t lhrev
 
     opt_rev = _svn.svn_opt_revision_t(_c_.svn_opt_revision_number, rev)
     if scratch_pool is not None:
@@ -682,8 +708,8 @@ def get_last_history_rev(
         tmp_pool = _svn.Apr_Pool(scratch_pool)
     else:
         tmp_pool = _svn.Apr_Pool(_svn._scratch_pool)
-    rev_list = []
-    lcrevs = []
+    lcrev = _c_.SVN_INVALID_REVNUM
+    lhrev = _c_.SVN_INVALID_REVNUM
     _c_targets = NULL
     try:
         IF SVN_API_VER >= (1, 9):
@@ -691,27 +717,27 @@ def get_last_history_rev(
                         url, &(opt_rev._c_opt_revision),
                         &(opt_rev._c_opt_revision), _c_.svn_depth_empty,
                         _c_.FALSE, _c_.TRUE, _c_.FALSE, NULL,
-                        _cb_get_last_change_rev, <void *>rev_list,
+                        _cb_get_last_change_rev, <void *>&lcrev,
                         ctx._c_ctx, tmp_pool._c_pool)
         ELIF SVN_API_VER >= (1, 7):
             serr = _c_.svn_client_info3(
                         url, &(opt_rev._c_opt_revision),
                         &(opt_rev._c_opt_revision), _c_.svn_depth_empty,
                         _c_.FALSE, _c_.TRUE, NULL,
-                        _cb_get_last_change_rev, <void *>rev_list,
+                        _cb_get_last_change_rev, <void *>&lcrev,
                         ctx._c_ctx, tmp_pool._c_pool)
         ELIF SVN_API_VER >= (1, 5):
             serr = _c_.svn_client_info2(
                         url, &(opt_rev._c_opt_revision),
                         &(opt_rev._c_opt_revision),
-                        _cb_get_last_change_rev, <void *>rev_list,
+                        _cb_get_last_change_rev, <void *>&lcrev,
                         _c_.svn_depth_empty, NULL,
                         ctx._c_ctx, tmp_pool._c_pool)
         ELSE:
             serr = _c_.svn_client_info(
                         url, &(opt_rev._c_opt_revision),
                         &(opt_rev._c_opt_revision),
-                        _cb_get_last_change_rev, <void *>rev_list,
+                        _cb_get_last_change_rev, <void *>&lcrev,
                         _c_.FALSE, ctx._c_ctx, tmp_pool._c_pool)
         if serr is not NULL:
             pyerr = _svn.Svn_error().seterror(serr)
@@ -722,7 +748,7 @@ def get_last_history_rev(
         # action and its revision only, call back of LogCollector are
         # too complex. So we can use simple call back that hold revision.
         opt_lc_rev = _svn.svn_opt_revision_t(_c_.svn_opt_revision_number,
-                                             rev_list[0])
+                                             lcrev)
         targets = [url]
         _c_targets = _bytes_list_to_apr_array(targets, tmp_pool._c_pool)
         IF SVN_API_VER >= (1, 4):
@@ -737,26 +763,26 @@ def get_last_history_rev(
                         _c_targets, &(opt_rev._c_opt_revision),
                         _c_rev_ranges, 1, _c_.TRUE, _c_.FALSE,
                         _c_.FALSE, _c_rev_props,
-                        _cb_get_last_changed_log_rev, <void *>lcrevs,
+                        _cb_get_last_changed_log_rev, <void *>&lhrev,
                         ctx._c_ctx, tmp_pool._c_pool)
         ELIF SVN_API_VER >= (1, 5):
             serr = _c_.svn_client_log4(
                         _c_targets, &(opt_rev._c_opt_revision),
                         opt_rev, opt_lc_rev, 1, _c_.TRUE, _c_.FALSE,
                         _c_.FALSE, _c_rev_props,
-                        _cb_get_last_changed_log_rev, <void *>lcrevs,
+                        _cb_get_last_changed_log_rev, <void *>&lhrev,
                         ctx._c_ctx, tmp_pool._c_pool)
         ELIF SVN_API_VER >= (1, 4):
             serr = _c_.svn_client_log3(
                         _c_targets, &(opt_rev._c_opt_revision),
                         opt_rev, opt_lc_rev, 1, _c_.TRUE, _c_.FALSE,
-                        _cb_get_last_changed_log_rev, <void *>lcrevs,
+                        _cb_get_last_changed_log_rev, <void *>&lhrev,
                         ctx._c_ctx, tmp_pool._c_pool)
         ELSE:
             serr = _c_.svn_client_log2(
                         _c_targets, &(opt_rev._c_opt_revision),
                         opt_rev, opt_lc_rev, 1, _c_.TRUE, _c_.FALSE,
-                        _cb_get_last_changed_log_rev, <void *>lcrevs,
+                        _cb_get_last_changed_log_rev, <void *>&lhrev,
                         ctx._c_ctx, tmp_pool._c_pool)
     finally:
         IF SVN_API_VER >= (1, 6):
@@ -771,7 +797,7 @@ def get_last_history_rev(
             _c_.apr_array_clear(_c_targets)
             _c_targets = NULL
         del tmp_pool
-    if lcrevs:
-        return lcrevs[0], rev_list[0]
+    if lhrev != _c_.SVN_INVALID_REVNUM:
+        return lhrev, lcrev
     else:
-        return rev_list[0], rev_list[0]
+        return lcrev, lcrev
