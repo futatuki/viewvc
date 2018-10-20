@@ -417,7 +417,8 @@ class _diff_fp:
   def __del__(self):
     self.close()
 
-  def _label(self, (path, date, rev)):
+  def _label(self, info):
+    path, date, rev = info
     date = date and time.strftime('%Y/%m/%d %H:%M:%S', time.gmtime(date))
     return "%s\t%s\t%s" % (path, date, rev)
 
