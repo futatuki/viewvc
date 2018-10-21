@@ -308,9 +308,7 @@ class RemoteSubversionRepository(vclib.Repository):
     path_type = self.itemtype(path_parts, rev) # does auth-check
     rev = self._getrev(rev)
     url = self._geturl(path)
-    pairs = client.svn_client_proplist2(url, _rev2optrev(rev),
-                                        _rev2optrev(rev), 0, self.ctx)
-    return pairs and pairs[0][1] or {}
+    return _svn_ra.simple_proplist(url, rev, self.ctx, self.scratch_pool)
 
   def annotate(self, path_parts, rev, include_text=False):
     def _blame_cb(btn, line_no, revision, author, date,
@@ -677,9 +675,7 @@ class RemoteSubversionRepository(vclib.Repository):
     # and with file contents which read "link SOME_PATH".
     if path_type != vclib.FILE:
       return None
-    pairs = client.svn_client_proplist2(url, _rev2optrev(rev),
-                                        _rev2optrev(rev), 0, self.ctx)
-    props = pairs and pairs[0][1] or {}
+    props = _svn_ra.simple_proplist(url, rev, self.ctx, self.scratch_pool)
     if not props.has_key(_svn.SVN_PROP_SPECIAL):
       return None
     pathspec = ''

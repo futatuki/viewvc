@@ -1071,3 +1071,160 @@ def client_log(
             _c_targets = NULL
         del tmp_pool
     return
+
+# simplified svn_client_prolist*() API for single node and single revision
+# without inherited props
+IF SVN_API_VER >= (1, 5):
+    cdef _c_.svn_error_t * _cb_simple_proplist_body(
+            void *_c_baton, _c_.apr_hash_t * _c_prop_hash,
+            _c_.apr_pool_t * _c_scratch_pool) with gil:
+        cdef object baton
+        cdef _c_.svn_error_t * _c_err
+        cdef _svn.Svn_error pyerr
+        cdef _svn.Apr_Pool scratch_pool
+        cdef _svn.Apr_Pool tmp_pool
+        cdef _svn.HashTrans prop_trans
+        cdef object propdict
+
+        baton = <object>_c_baton
+        if baton:
+            _c_err = _c_.svn_error_create(
+                            _c_.SVN_ERR_ASSERTION_FAIL, NULL,
+                            "_cb_simple_proplist_receiver has been called "
+                            "more than once")
+            return _c_err
+        if _c_prop_hash is NULL:
+            baton.append({})
+        else:
+            scratch_pool = _svn.Apr_Pool.__new__(_svn.Apr_Pool, pool=None)
+            scratch_pool.set_pool(_c_scratch_pool)
+            tmp_pool = _svn.Apr_Pool(scratch_pool)
+            try:
+                prop_trans = _svn.HashTrans(_svn.CStringTransStr(),
+                                            _svn.SvnStringTransStr(),
+                                            tmp_pool)
+                prop_trans.set_ptr(<void *>(_c_prop_hash))
+                propdict = prop_trans.to_object()
+                del prop_trans
+                baton.append(propdict)
+            except _svn.SVNerr as serr:
+                pyerr = serr.svnerr
+                _c_err = _c_.svn_error_dup(pyerr.geterror())
+                del serr
+            except AssertionError, err:
+                IF PY_VERSION >= (3, 0, 0):
+                    _c_err = _c_.svn_error_create(
+                                _c_.SVN_ERR_ASSERTION_FAIL, NULL,
+                                str(err).encode('utf-8'))
+                ELSE:
+                    _c_err = _c_.svn_error_create(
+                                _c_.SVN_ERR_ASSERTION_FAIL, NULL, str(err))
+            except KeyboardInterrupt, err:
+                IF PY_VERSION >= (3, 0, 0):
+                    _c_err = _c_.svn_error_create(
+                                _c_.SVN_ERR_CANCELLED, NULL,
+                                str(err).encode('utf-8'))
+                ELSE:
+                    _c_err = _c_.svn_error_create(
+                                _c_.SVN_ERR_CANCELLED, NULL, str(err))
+            except BaseException, err:
+                IF PY_VERSION >= (3, 0, 0):
+                    _c_err = _c_.svn_error_create(
+                                _c_.SVN_ERR_BASE, NULL,
+                                str(err).encode('utf-8'))
+                ELSE:
+                    _c_err = _c_.svn_error_create(
+                                _c_.SVN_ERR_BASE, NULL, str(err))
+            finally:
+                del tmp_pool
+                del scratch_pool
+        return _c_err
+
+
+    IF SVN_API_VER >= (1, 8):
+        cdef _c_.svn_error_t * _cb_simple_proplist_receiver(
+                void * _c_baton, const char * _c_path,
+                _c_.apr_hash_t * _c_prop_hash,
+                _c_.apr_array_header_t * inherited_props,
+                _c_.apr_pool_t * _c_scratch_pool) nogil:
+            return _cb_simple_proplist_body(
+                            _c_baton, _c_prop_hash, _c_scratch_pool)
+    ELSE:
+        cdef _c_.svn_error_t * _cb_simple_proplist_receiver(
+                void * _c_baton, const char * _c_path,
+                _c_.apr_hash_t * _c_prop_hash,
+                _c_.apr_pool_t * _c_scratch_pool) nogil:
+            return _cb_simple_proplist_body(
+                            _c_baton, _c_prop_hash, _c_scratch_pool)
+
+def simple_proplist(
+        const char * url, object rev, _svn.svn_client_ctx_t ctx,
+        object scratch_pool=None):
+    cdef _svn.Apr_Pool tmp_pool
+    cdef _svn.svn_opt_revision_t opt_rev
+    IF SVN_API_VER >= (1, 5):
+        cdef object propdic_list
+    ELSE:
+        cdef _c_.apr_array_header_t * _c_props
+        cdef _c_.svn_client_proplist_item_t * _c_prop_item
+        cdef _svn.HashTrans prop_trans
+    cdef _c_.svn_error_t * serr
+    cdef _svn.Svn_error pyerr
+    cdef object propdic
+
+    if isinstance(rev, _svn.svn_opt_revision_t):
+        opt_rev = rev
+    else:
+        opt_rev = _svn.svn_opt_revision_t(_c_.svn_opt_revision_number, rev)
+    if scratch_pool is not None:
+        assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
+        tmp_pool = _svn.Apr_Pool(scratch_pool)
+    else:
+        (<_svn.Apr_Pool>_svn._scratch_pool).clear()
+        tmp_pool = _svn.Apr_Pool(_svn._scratch_pool)
+    IF SVN_API_VER >= (1, 5):
+        propdic_list = []
+    try:
+        IF SVN_API_VER >= (1, 8):
+            serr = _c_.svn_client_proplist4(
+                        url, &(opt_rev._c_opt_revision),
+                        &(opt_rev._c_opt_revision), _c_.svn_depth_empty,
+                        NULL, _c_.FALSE,
+                        _cb_simple_proplist_receiver, <void *>propdic_list,
+                        ctx._c_ctx, tmp_pool._c_pool)
+        ELIF SVN_API_VER >= (1, 5):
+            serr = _c_.svn_client_proplist3(
+                        url, &(opt_rev._c_opt_revision),
+                        &(opt_rev._c_opt_revision), _c_.svn_depth_empty, NULL,
+                        _cb_simple_proplist_receiver, <void *>propdic_list,
+                        ctx._c_ctx, tmp_pool._c_pool)
+        ELSE:
+            _c_props = NULL
+            serr = _c_.svn_client_proplist2(
+                        &_c_props, url, &(opt_rev._c_opt_revision),
+                        &(opt_rev._c_opt_revision), _c_.FALSE,
+                        ctx._c_ctx, tmp_pool._c_pool)
+        if serr is not NULL:
+            pyerr = _svn.Svn_error().seterror(serr)
+            raise _svn.SVNerr(pyerr)
+        IF SVN_API_VER > (1, 5):
+            # extract props from array
+            assert len(propdic_list) == 1
+            propdic = propdic_list[0]
+        ELSE:
+            # extract props from array
+            assert _c_props is not NULL
+            assert _c_props[0].nels == 1
+            prop_trans = _svn.HashTrans(_svn.CStringTransStr(),
+                                        _svn.SvnStringTransStr(),
+                                        tmp_pool)
+            if _c_props[0].elts is NULL:
+                propdic = {}
+            else:
+                (<_c_.apr_hash_t **>(prop_trans.ptr_ref()))[0] = \
+                                <_c_.apr_hash_t *>(_c_props[0].elts)
+                propdic = prop_trans.to_object()
+            del prop_trans
+    finally:
+        del tmp_pool
+    return propdic

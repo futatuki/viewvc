@@ -6,6 +6,7 @@ from apr_1.apr_tables cimport apr_array_header_t
 from subversion_1.svn_types cimport *
 from subversion_1.svn_opt cimport svn_opt_revision_t
 from subversion_1.svn_auth cimport *
+from subversion_1.svn_string cimport svn_stringbuf_t
 from subversion_1.svn_io cimport svn_stream_t
 from subversion_1.svn_wc cimport svn_wc_info_t, svn_wc_schedule_t
 IF SVN_API_VER >= (1, 4):
@@ -25,6 +26,20 @@ cdef extern from "svn_client.h" nogil:
                 svn_auth_provider_object_t ** provider, apr_pool_t * pool)
         void svn_client_get_ssl_client_cert_pw_file_provider(
                 svn_auth_provider_object_t ** provider, apr_pool_t * pool)
+
+    ctypedef struct svn_client_proplist_item_t:
+        svn_stringbuf_t * node_name
+        apr_hash_t * prop_hash
+    IF SVN_API_VER >= (1, 8):
+        ctypedef svn_error_t * (* svn_proplist_receiver2_t)(
+                void * baton, const char * path, apr_hash_t * prop_hash,
+                apr_array_header_t * inherited_props,
+                apr_pool_t * scratch_pool)
+    IF SVN_API_VER >= (1, 5):
+        ctypedef svn_error_t * (* svn_proplist_receiver_t)(
+                void * baton, const char * path, apr_hash_t * prop_hash,
+                apr_pool_t * scratch_pool)
+
     # we don't use full feature of structure svn_client_ctx_t,
     # and Cython allowes partial declaration of members ...
     ctypedef struct svn_client_ctx_t:
@@ -164,6 +179,28 @@ cdef extern from "svn_client.h" nogil:
             svn_boolean_t strict_node_history,
             svn_log_message_receiver_t receiver,
             void * receiver_baton, svn_client_ctx_t * ctx, apr_pool_t * pool)
+
+    IF SVN_API_VER >= (1, 8):
+        svn_error_t * svn_client_proplist4(
+                const char * target, const svn_opt_revision_t * peg_revision,
+                const svn_opt_revision_t * revision, svn_depth_t depth,
+                const apr_array_header_t * changelists,
+                svn_boolean_t get_target_inherited_props,
+                svn_proplist_receiver2_t receiver, void * receiver_baton,
+                svn_client_ctx_t * ctx, apr_pool_t * scratch_pool)
+    IF SVN_API_VER >= (1, 5):
+        svn_error_t * svn_client_proplist3(
+                const char * target, const svn_opt_revision_t * peg_revision,
+                const svn_opt_revision_t * revision, svn_depth_t depth,
+                const apr_array_header_t * changelists,
+                svn_proplist_receiver_t receiver, void * receiver_baton,
+                svn_client_ctx_t *ctx, apr_pool_t * pool)
+    IF SVN_API_VER >= (1, 2):
+        svn_error_t * svn_client_proplist2(
+                apr_array_header_t ** props, const char * target,
+                const svn_opt_revision_t * peg_revision,
+                const svn_opt_revision_t * revision, svn_boolean_t recurse,
+                svn_client_ctx_t * ctx, apr_pool_t * pool)
 
     IF SVN_API_VER >= (1, 8):
         ctypedef svn_error_t * (* svn_client_list_func2_t)(
