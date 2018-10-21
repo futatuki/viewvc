@@ -130,7 +130,7 @@ cdef class Svn_error(object):
                 IF PY_VERSION < (3, 0, 0):
                     self.bytes_msg = str(msg)
                 ELSE:
-                    self.bytes_msg = str(msg).decode('utf-8')
+                    self.bytes_msg = str(msg).encode('utf-8')
                 _c_msg = self.bytes_msg
             else:
                 _c_msg = NULL
