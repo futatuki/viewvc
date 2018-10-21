@@ -30,37 +30,6 @@ if (_svn.SVN_VER_MAJOR, _svn.SVN_VER_MINOR, _svn.SVN_VER_PATCH) < (1, 3, 1):
   raise Exception, "Version requirement not met (needs 1.3.1 or better)"
 
 
-### BEGIN COMPATABILITY CODE ###
-
-def client_log(url, start_rev, end_rev, log_limit, include_changes,
-               cross_copies, cb_func, ctx):
-  include_changes = include_changes and 1 or 0
-  cross_copies = cross_copies and 1 or 0
-  try:
-    client.svn_client_log4([url], start_rev, start_rev, end_rev,
-                           log_limit, include_changes, not cross_copies,
-                           0, None, cb_func, ctx)
-  except AttributeError:
-    # Wrap old svn_log_message_receiver_t interface with a
-    # svn_log_entry_t one.
-    def cb_convert(paths, revision, author, date, message, pool):
-      class svn_log_entry_t:
-        pass
-      log_entry = svn_log_entry_t()
-      log_entry.changed_paths = paths
-      log_entry.revision = revision
-      log_entry.revprops = { _svn.SVN_PROP_REVISION_LOG : message,
-                             _svn.SVN_PROP_REVISION_AUTHOR : author,
-                             _svn.SVN_PROP_REVISION_DATE : date,
-                             }
-      cb_func(log_entry, pool)
-    client.svn_client_log2([url], start_rev, end_rev, log_limit,
-                           include_changes, not cross_copies, cb_convert, ctx)
-
-
-### END COMPATABILITY CODE ###
-
-
 class LogCollector:
 
   def __init__(self, path, show_all_logs, lockinfo, access_check_func):
@@ -314,8 +283,8 @@ class RemoteSubversionRepository(vclib.Repository):
     log_limit = 0
     if limit:
       log_limit = first + limit
-    client_log(url, _rev2optrev(rev), _rev2optrev(1), log_limit, 1,
-               cross_copies, lc.add_log, self.ctx)
+    _svn_ra.client_log(url, rev, 1, log_limit, 1,
+                       cross_copies, lc.add_log, self.ctx, self.scratch_pool)
     revs = lc.logs
     revs.sort()
     prev = None
@@ -615,9 +584,8 @@ class RemoteSubversionRepository(vclib.Repository):
       # Add this revision information to the "return" array.
       retval.append([date, author, msg, revprops, changes])
 
-    optrev = _rev2optrev(rev)
-    client_log(self.rootpath, optrev, optrev, 1, need_changes, 0,
-               _log_cb, self.ctx)
+    _svn_ra.client_log(self.rootpath, rev, rev, 1, need_changes, 0,
+               _log_cb, self.ctx, self.scratch_pool)
     return tuple(revs[0])
 
   def _revinfo(self, rev, include_changed_paths=0):

@@ -3,7 +3,9 @@ include "_py_ver.pxi"
 cimport _svn_ra_capi as _c_
 cimport _svn
 cimport _svn_repos
-import _svn
+from . import _svn
+IF PY_VERSION >= (3, 0, 0):
+    from . import _norm
 
 def _ra_init():
     cdef _c_.svn_error_t * serr
@@ -328,7 +330,7 @@ cdef inline object _svn_dirent_to_object(const _c_.svn_dirent_t * _c_dirent):
     has_props = True if _c_dirent[0].has_props != _c_.FALSE else False
     last_author = <bytes>(_c_dirent[0].last_author)
     IF PY_VERSION >= (3, 0, 0):
-        last_author = _svn._norm(last_author)
+        last_author = _norm(last_author)
     return _Dirent(_c_dirent[0].kind, _c_dirent[0].size, has_props,
                    _c_dirent[0].created_rev, _c_dirent[0].time, last_author)
 
@@ -698,7 +700,8 @@ def get_last_history_rev(
     cdef list targets
     cdef _c_.apr_array_header_t * _c_targets
     cdef list rev_ranges
-    cdef _c_.apr_array_header_t * _c_rev_ranges
+    IF SVN_API_VER >= (1, 6):
+        cdef _c_.apr_array_header_t * _c_rev_ranges
     cdef _c_.apr_array_header_t * _c_revprops
     cdef _c_.svn_revnum_t lhrev
 
@@ -761,29 +764,38 @@ def get_last_history_rev(
                                     rev_ranges, tmp_pool._c_pool)
             serr = _c_.svn_client_log5(
                         _c_targets, &(opt_rev._c_opt_revision),
-                        _c_rev_ranges, 1, _c_.TRUE, _c_.FALSE,
+                        _c_rev_ranges, 1, _c_.FALSE, _c_.TRUE,
                         _c_.FALSE, _c_rev_props,
                         _cb_get_last_changed_log_rev, <void *>&lhrev,
                         ctx._c_ctx, tmp_pool._c_pool)
         ELIF SVN_API_VER >= (1, 5):
             serr = _c_.svn_client_log4(
                         _c_targets, &(opt_rev._c_opt_revision),
-                        opt_rev, opt_lc_rev, 1, _c_.TRUE, _c_.FALSE,
+                        &(opt_rev._c_opt_revision),
+                        &(opt_lc_rev._c_opt_revision),
+                        1, _c_.FALSE, _c_.TRUE,
                         _c_.FALSE, _c_rev_props,
                         _cb_get_last_changed_log_rev, <void *>&lhrev,
                         ctx._c_ctx, tmp_pool._c_pool)
         ELIF SVN_API_VER >= (1, 4):
             serr = _c_.svn_client_log3(
                         _c_targets, &(opt_rev._c_opt_revision),
-                        opt_rev, opt_lc_rev, 1, _c_.TRUE, _c_.FALSE,
+                        &(opt_rev._c_opt_revision),
+                        &(opt_lc_rev._c_opt_revision),
+                        1, _c_.FALSE, _c_.TRUE,
                         _cb_get_last_changed_log_rev, <void *>&lhrev,
                         ctx._c_ctx, tmp_pool._c_pool)
         ELSE:
             serr = _c_.svn_client_log2(
-                        _c_targets, &(opt_rev._c_opt_revision),
-                        opt_rev, opt_lc_rev, 1, _c_.TRUE, _c_.FALSE,
+                        _c_targets,
+                        &(opt_rev._c_opt_revision),
+                        &(opt_lc_rev._c_opt_revision),
+                        1, _c_.FALSE, _c_.TRUE,
                         _cb_get_last_changed_log_rev, <void *>&lhrev,
                         ctx._c_ctx, tmp_pool._c_pool)
+        if serr is not NULL:
+            pyerr = _svn.Svn_error().seterror(serr)
+            raise _svn.SVNerr(pyerr)
     finally:
         IF SVN_API_VER >= (1, 6):
             if _c_rev_ranges is not NULL:
@@ -801,3 +813,388 @@ def get_last_history_rev(
         return lhrev, lcrev
     else:
         return lcrev, lcrev
+
+
+# apr_pool free data reference objects for svn_log_entry_t
+IF SVN_API_VER >= (1, 6):
+    cdef class py_svn_log_changed_path2_ref(object):
+        def __cinit__(self):
+            self.action = None
+            self.copyfrom_path = None
+            self.copyfrom_rev = None
+            self.node_kind = _c_.svn_node_unknown
+            IF SVN_API_VER >= (1, 7):
+                self.text_modified = _c_.svn_tristate_unknown
+                self.props_modified = _c_.svn_tristate_unknown
+
+        cdef py_svn_log_changed_path2_ref bind(
+                    py_svn_log_changed_path2_ref self,
+                    const _c_.svn_log_changed_path2_t * ptr):
+            assert ptr is not NULL
+            self.action = chr(ptr[0].action)
+            if ptr[0].copyfrom_path is NULL:
+                self[0].copyfrom_path = None
+                self[0].copyfrom_rev = None
+            else:
+                self[0].copyfrom_path = <bytes>(ptr[0].copyfrom_path)
+                self[0].copyfrom_rev  = <bytes>(ptr[0].copyfrom_rev)
+            self.node_kind = ptr[0].node_kind
+            IF SVN_API_VER >= (1, 7):
+                self.text_modified  = ptr[0].text_modified
+                self.props_modified = ptr[0].props_modified
+            return self
+
+    cdef class SvnLogChangedPath2Trans(_svn.TransPtr):
+        cdef _c_.svn_log_changed_path2_t * _c_ptr
+        cdef void ** ptr_ref(self):
+            return <void **>&(self._c_ptr)
+        cdef void set_changed_path2(
+                self, _c_.svn_log_changed_path2_t * _c_ptr):
+            self._c_ptr = _c_ptr
+        cdef object to_object(self):
+            cdef py_svn_log_changed_path2_ref changed_path
+            changed_path = py_svn_log_changed_path2_ref()
+            changed_path.bind(self._c_ptr)
+            return changed_path
+
+
+cdef class py_svn_log_changed_path_ref(object):
+    def __cinit__(self):
+        self.action = None
+        self.copyfrom_path = None
+        self.copyfrom_rev = None
+
+    cdef py_svn_log_changed_path_ref bind(
+                py_svn_log_changed_path_ref self,
+                const _c_.svn_log_changed_path_t * ptr):
+        assert ptr is not NULL
+        self.action = chr(ptr[0].action)
+        if ptr[0].copyfrom_path is NULL:
+            self[0].copyfrom_path = None
+            self[0].copyfrom_rev = None
+        else:
+            self[0].copyfrom_path = <bytes>(ptr[0].copyfrom_path)
+            self[0].copyfrom_rev  = <bytes>(ptr[0].copyfrom_rev)
+        return self
+
+cdef class SvnLogChangedPathTrans(_svn.TransPtr):
+    cdef _c_.svn_log_changed_path_t * _c_ptr
+    cdef void ** ptr_ref(self):
+        return <void **>&(self._c_ptr)
+    cdef void set_changed_path(self, _c_.svn_log_changed_path_t * _c_ptr):
+        self._c_ptr = _c_ptr
+    cdef object to_object(self):
+        cdef py_svn_log_changed_path_ref changed_path
+        changed_path = py_svn_log_changed_path_ref()
+        changed_path.bind(self._c_ptr)
+        return changed_path
+
+
+# apr_pool free data reference object for svn_log_entry_t
+cdef class py_svn_log_entry(object):
+    def __cinit__(self):
+        self.changed_paths = None
+        self.revision = _c_.SVN_INVALID_REVNUM
+        self.revprops = None
+        IF SVN_API_VER >= (1, 5):
+            self.has_children = False
+        IF SVN_API_VER >= (1, 6):
+            self.changed_paths2 = None
+        IF SVN_API_VER >= (1, 7):
+            self.non_inheritable = False
+            self.subtractive_merge = False
+        return
+
+    IF SVN_API_VER >= (1, 5):
+        cdef void bind(self, const _c_.svn_log_entry_t *_c_ptr,
+                _svn.Apr_Pool scratch_pool):
+            cdef _svn.Apr_Pool tmp_pool
+            cdef _svn.HashTrans cp_trans
+            cdef _svn.HashTrans prop_trans
+            IF SVN_API_VER >= (1, 6):
+                cdef _svn.HashTrans cp2_trans
+
+            assert _c_ptr is not NULL
+            assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
+            tmp_pool = _svn.Apr_Pool(scratch_pool)
+            if _c_ptr[0].changed_paths is NULL:
+                self.changed_paths = {}
+            else:
+                cp_trans = _svn.HashTrans(_svn.CStringTransBytes(),
+                                          _svn.SvnLogChangedPathTrans(),
+                                          tmp_pool)
+                try:
+                    cp_trans.set_ptr(<void *>(_c_ptr[0].changed_paths))
+                    self.changed_paths = cp_trans.to_object()
+                finally:
+                    del cp_trans
+            self.revision = _c_ptr[0].revision
+            if _c_ptr[0].revprops is NULL:
+                self.revprops = {}
+            else:
+                prop_trans = _svn.HashTrans(_svn.CStringTransStr(),
+                                            _svn.SvnStringTransStr(),
+                                            tmp_pool)
+                try:
+                    prop_trans.set_ptr(<void *>(_c_ptr[0].revprops))
+                    self.revprops = prop_trans.to_object()
+                finally:
+                    del prop_trans
+            if _c_ptr[0].has_children:
+                self.has_children = True
+            else:
+                self.has_children = False
+            IF SVN_API_VER >= (1, 6):
+                if _c_ptr[0].changed_paths2 is NULL:
+                    self.changed_paths2 = {}
+                else:
+                    cp2_trans = _svn.HashTrans(
+                                            _svn.CStringTransBytes(),
+                                            _svn.SvnLogChangedPath2Trans(),
+                                            tmp_pool)
+                    try:
+                        cp2_trans.set_ptr(<void *>(_c_ptr[0].changed_paths2))
+                        self.changed_paths2 = cp2_trans.to_object()
+                    finally:
+                        del cp2_trans
+            IF SVN_API_VER >= (1, 7):
+                if _c_ptr[0].non_inheritable:
+                    self.non_inheritable = True
+                else:
+                    self.non_inheritable = False
+                if _c_ptr[0].subtractive_merge:
+                    self.subtractive_merge = True
+                else:
+                    self.subtractive_merge = False
+            del tmp_pool
+            return
+    ELSE:
+        cdef void bind(
+                self, const _c_.apr_hash_t *_c_changed_paths,
+                _c_.svn_revision_t _c_revision, const char * author,
+                const char * date, const char * message,
+                _svn.Apr_Pool scratch_pool):
+            cdef _svn.Apr_Pool tmp_pool
+            cdef _svn.HashTrans cp_trans
+
+            assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
+            tmp_pool = Apr_Pool(scratch_pool)
+            if _c_ptr[0].changed_paths is NULL:
+                self.changed_paths = {}
+            else:
+                cp_trans = _svn.HashTrans(_svn.CStringTransBytes(),
+                                          _svn.SvnLogChangedPathTrans(),
+                                          tmp_pool)
+                try:
+                    cp_trans.set_ptr(<void *>(_c_changed_paths))
+                    self.changed_paths = cp_trans.to_object()
+                finally:
+                    del cp_trans
+            self.revision = _c_.revision
+            IF PY_VERSION >= (3, 0, 0):
+                self.revprops = {
+                        _svn.SVN_PROP_REVISION_LOG :
+                                (_norm(<bytes>_c_message)
+                                        if _c_message is not NULL else ''),
+                        _svn.SVN_PROP_REVISION_AUTHOR :
+                                (_norm(<bytes>_c_author)
+                                        if _c_author is not NULL else ''),
+                        _svn.SVN_PROP_REVISION_DATE :
+                                (_norm(<bytes>_c_date)
+                                        if _c_date is not NULL else '')}
+            ELSE:
+                self.revprops = {
+                        _svn.SVN_PROP_REVISION_LOG :
+                                (<bytes>_c_message
+                                        if _c_message is not NULL else ''),
+                        _svn.SVN_PROP_REVISION_AUTHOR :
+                                (<bytes>_c_author
+                                        if _c_author is not NULL else ''),
+                        _svn.SVN_PROP_REVISION_DATE :
+                                (<bytes>_c_date
+                                        if _c_date is not NULL else '') }
+            del tmp_pool
+            return
+
+# call back function for svn_client_log*()
+IF SVN_API_VER >= (1, 5):
+    cdef _c_.svn_error_t * _cb_svn_log_entry_receiver_t_wrapper(
+            void * _c_baton, _c_.svn_log_entry_t * _c_log_entry,
+            _c_.apr_pool_t * _c_pool) with gil:
+        cdef _svn.CbContainer btn
+        cdef py_svn_log_entry log_entry
+        cdef _c_.svn_error_t * _c_err
+        cdef _svn.Svn_error svnerr
+
+        btn = <_svn.CbContainer>_c_baton
+        log_entry = py_svn_log_entry()
+        try:
+            log_entry.bind(_c_log_entry, btn.pool)
+            btn.fnobj(btn, log_entry, btn.pool)
+        except _svn.SVNerr as serr:
+            svnerr = serr.svnerr
+            _c_err = _c_.svn_error_dup(svnerr.geterror())
+            del serr
+        except AssertionError, err:
+            IF PY_VERSION >= (3, 0, 0):
+                _c_err = _c_.svn_error_create(
+                            _c_.SVN_ERR_ASSERTION_FAIL, NULL,
+                            str(err).encode('utf-8'))
+            ELSE:
+                _c_err = _c_.svn_error_create(
+                            _c_.SVN_ERR_ASSERTION_FAIL, NULL, str(err))
+        except KeyboardInterrupt, err:
+            IF PY_VERSION >= (3, 0, 0):
+                _c_err = _c_.svn_error_create(
+                            _c_.SVN_ERR_CANCELLED, NULL,
+                            str(err).encode('utf-8'))
+            ELSE:
+                _c_err = _c_.svn_error_create(
+                            _c_.SVN_ERR_CANCELLED, NULL, str(err))
+        except BaseException, err:
+            IF PY_VERSION >= (3, 0, 0):
+                _c_err = _c_.svn_error_create(
+                            _c_.SVN_ERR_BASE, NULL, str(err).encode('utf-8'))
+            ELSE:
+                _c_err = _c_.svn_error_create(_c_.SVN_ERR_BASE, NULL, str(err))
+        return _c_err
+ELSE:
+    cdef _c_.svn_error_t * _cb_svn_log_message_receiver_t_wrapper(
+            void * _c_baton, _c_.apr_hash_t * _c_changed_paths,
+            _c_.svn_revnum_t _c_revision, const char * _c_author,
+            const char * _c_date, const char * _c_message,
+            _c_.apr_pool_t * pool) with gil:
+        cdef _svn.CbContainer btn
+        cdef py_svn_log_entry log_entry
+        cdef _c_.svn_error_t * _c_err
+        cdef _svn.Svn_error svnerr
+
+        btn = <_svn.CbContainer>_c_baton
+        log_entry = py_svn_log_entry()
+        try:
+            log_entry.bind(
+                    _c_changed_paths, _c_revision, _c_author, _c_date,
+                    _c_message, btn.pool)
+            btn.fnobj(btn, log_entry, btn.pool)
+        except _svn.SVNerr as serr:
+            svnerr = serr.svnerr
+            _c_err = _c_.svn_error_dup(svnerr.geterror())
+            del serr
+        except AssertionError, err:
+            IF PY_VERSION >= (3, 0, 0):
+                _c_err = _c_.svn_error_create(
+                            _c_.SVN_ERR_ASSERTION_FAIL, NULL,
+                            str(err).encode('utf-8'))
+            ELSE:
+                _c_err = _c_.svn_error_create(
+                            _c_.SVN_ERR_ASSERTION_FAIL, NULL, str(err))
+        except KeyboardInterrupt, err:
+            IF PY_VERSION >= (3, 0, 0):
+                _c_err = _c_.svn_error_create(
+                            _c_.SVN_ERR_CANCELLED, NULL,
+                            str(err).encode('utf-8'))
+            ELSE:
+                _c_err = _c_.svn_error_create(
+                            _c_.SVN_ERR_CANCELLED, NULL, str(err))
+        except BaseException, err:
+            IF PY_VERSION >= (3, 0, 0):
+                _c_err = _c_.svn_error_create(
+                            _c_.SVN_ERR_BASE, NULL, str(err).encode('utf-8'))
+            ELSE:
+                _c_err = _c_.svn_error_create(_c_.SVN_ERR_BASE, NULL, str(err))
+        return _c_err
+
+
+# svn_client_log*() wrapper for vclib: disable some feature unused
+def client_log(
+        const char * url, object start_rev, object end_rev, int log_limit,
+        object include_changes, object cross_copies, object cb_func,
+        svn_client_ctx_t ctx, object scratch_pool=None):
+    cdef _svn.Apr_Pool tmp_pool
+    cdef _svn.svn_opt_revision_t opt_start_rev
+    cdef _svn.svn_opt_revision_t opt_end_rev
+    cdef _c_.svn_boolean_t _c_discover_changed_paths
+    cdef _c_.svn_boolean_t _c_strict_node_history
+    cdef object targets
+    cdef _c_.apr_array_header_t * _c_targets
+    cdef _svn.CbContainer btn
+    cdef _c_.svn_error_t * serr
+    cdef _svn.Svn_error pyerr
+
+    IF SVN_API_VER >= (1, 6):
+        cdef list rev_ranges
+        cdef _c_.apr_array_header_t * _c_rev_ranges
+
+    if isinstance(start_rev, _svn.svn_opt_revision_t):
+        opt_start_rev = start_rev
+    else:
+        opt_start_rev = _svn.svn_opt_revision_t(
+                                _c_.svn_opt_revision_number, start_rev)
+    if isinstance(end_rev, _svn.svn_opt_revision_t):
+        opt_end_rev = end_rev
+    else:
+        opt_end_rev = _svn.svn_opt_revision_t(
+                                _c_.svn_opt_revision_number, end_rev)
+    _c_discover_changed_paths = _c_.TRUE if include_changes else _c_.FALSE
+    _c_strict_node_history = _c_.TRUE if not cross_copies else _c_.FALSE
+    if scratch_pool is not None:
+        assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
+        tmp_pool = _svn.Apr_Pool(scratch_pool)
+    else:
+        (<_svn.Apr_Pool>_svn._scratch_pool).clear()
+        tmp_pool = _svn.Apr_Pool(_svn._scratch_pool)
+    try:
+        targets = [<bytes>url]
+        _c_targets = _bytes_list_to_apr_array(targets, tmp_pool._c_pool)
+        btn = _svn.CbContainer(cb_func, None, tmp_pool)
+        IF SVN_API_VER >= (1, 6):
+            rev_ranges = [_svn.svn_opt_revision_range_t(opt_start_rev,
+                                                        opt_end_rev)]
+            _c_rev_ranges = _revrange_list_to_apr_array(
+                                    rev_ranges, tmp_pool._c_pool)
+            serr = _c_.svn_client_log5(
+                        _c_targets, &(opt_start_rev._c_opt_revision),
+                        _c_rev_ranges, log_limit, _c_discover_changed_paths,
+                        _c_strict_node_history, _c_.FALSE, NULL,
+                        _cb_svn_log_entry_receiver_t_wrapper,<void *>btn,
+                        ctx._c_ctx, tmp_pool._c_pool)
+        ELIF SVN_API_VER >= (1, 5):
+            serr = _c_.svn_client_log4(
+                        _c_targets, &(opt_start_rev._c_opt_revision),
+                        &(opt_start_rev._c_opt_revision),
+                        &(opt_end_rev._c_opt_revision),
+                        log_limit, _c_discover_changed_paths,
+                        _c_strict_node_history, _c_.FALSE, NULL,
+                        _cb_svn_log_entry_receiver_t_wrapper,<void *>btn,
+                        ctx._c_ctx, tmp_pool._c_pool)
+        ELIF SVN_API_VER >= (1, 4):
+            serr = _c_.svn_client_log3(
+                        _c_targets, &(opt_start_rev._c_opt_revision),
+                        &(opt_start_rev._c_opt_revision),
+                        &(opt_end_rev._c_opt_revision),
+                        log_limit, _c_discover_changed_paths,
+                        _c_strict_node_history,
+                        _cb_svn_log_message_receiver_t_wrapper, <void *>btn,
+                        ctx._c_ctx, tmp_pool._c_pool)
+        ELSE:
+            serr = _c_.svn_client_log2(
+                        _c_targets,
+                        &(opt_start_rev._c_opt_revision),
+                        &(opt_end_rev._c_opt_revision),
+                        log_limit, _c_discover_changed_paths,
+                        _c_strict_node_history,
+                        _cb_svn_log_message_receiver_t_wrapper, <void *>btn,
+                        ctx._c_ctx, tmp_pool._c_pool)
+        if serr is not NULL:
+            pyerr = _svn.Svn_error().seterror(serr)
+            raise _svn.SVNerr(pyerr)
+    finally:
+        IF SVN_API_VER >= (1, 6):
+            if _c_rev_ranges is not NULL:
+                _c_.apr_array_clear(_c_rev_ranges)
+                _c_rev_ranges = NULL
+        if _c_targets is not NULL:
+            _c_.apr_array_clear(_c_targets)
+            _c_targets = NULL
+        del tmp_pool
+    return

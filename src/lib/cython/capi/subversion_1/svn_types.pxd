@@ -73,6 +73,24 @@ cdef extern from "svn_types.h" nogil:
     enum: SVN_DIRENT_LAST_AUTHOR
     enum: SVN_DIRENT_ALL
     enum: SVN_STREAM_CHUNK_SIZE
+    ctypedef struct svn_log_changed_path_t:
+        char action
+        const char * copyfrom_path
+        svn_revnum_t copyfrom_rev
+    IF SVN_API_VER >= (1, 7):
+        ctypedef struct svn_log_changed_path2_t:
+            char action
+            const char * copyfrom_path
+            svn_revnum_t copyfrom_rev
+            svn_node_kind_t node_kind
+            svn_tristate_t text_modified
+            svn_tristate_t props_modified
+    ELIF SVN_API_VER >= (1, 6):
+        ctypedef struct svn_log_changed_path2_t:
+            char action
+            const char * copy_from_path
+            svn_revnum_t copyfrom_rev
+            svn_node_kind_t node_kind
     IF SVN_API_VER >= (1, 7):
         ctypedef struct svn_log_entry_t:
             apr_hash_t * changed_paths
