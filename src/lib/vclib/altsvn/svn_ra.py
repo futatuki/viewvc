@@ -44,6 +44,7 @@ class LogCollector:
     self.access_check_func = access_check_func
     self.done = False
 
+  @staticmethod
   def add_log(self, log_entry, pool):
     if self.done:
       return
@@ -284,7 +285,8 @@ class RemoteSubversionRepository(vclib.Repository):
     if limit:
       log_limit = first + limit
     _svn_ra.client_log(url, rev, 1, log_limit, 1,
-                       cross_copies, lc.add_log, self.ctx, self.scratch_pool)
+                       cross_copies, lc.add_log, lc, self.ctx,
+                       self.scratch_pool)
     revs = lc.logs
     revs.sort()
     prev = None
@@ -437,7 +439,7 @@ class RemoteSubversionRepository(vclib.Repository):
     dirents_locks = self._dirent_cache.get(key)
     if not dirents_locks:
       tmp_dirents, locks = _svn_ra.list_directory(dir_url, rev, rev, 0,
-                                                  self.ctx self.scratch_pool)
+                                                  self.ctx, self.scratch_pool)
       dirents = {}
       for name, dirent in tmp_dirents.items():
         dirent_parts = path_parts + [name]
@@ -472,7 +474,7 @@ class RemoteSubversionRepository(vclib.Repository):
     need_changes = include_changed_paths or self.auth
     revs = []
 
-    def _log_cb(log_entry, pool, retval=revs):
+    def _log_cb(retval, log_entry, pool):
       # If Subversion happens to call us more than once, we choose not
       # to care.
       if retval:
@@ -489,7 +491,7 @@ class RemoteSubversionRepository(vclib.Repository):
       # Easy out: if we won't use the changed-path info, just return a
       # changes-less tuple.
       if not need_changes:
-        return revs.append([date, author, msg, revprops, None])
+        return retval.append([date, author, msg, revprops, None])
 
       # Subversion 1.5 and earlier didn't offer the 'changed_paths2'
       # hash, and in Subversion 1.6, it's offered but broken.
@@ -583,7 +585,7 @@ class RemoteSubversionRepository(vclib.Repository):
       retval.append([date, author, msg, revprops, changes])
 
     _svn_ra.client_log(self.rootpath, rev, rev, 1, need_changes, 0,
-               _log_cb, self.ctx, self.scratch_pool)
+               _log_cb, revs, self.ctx, self.scratch_pool)
     return tuple(revs[0])
 
   def _revinfo(self, rev, include_changed_paths=0):
@@ -607,7 +609,7 @@ class RemoteSubversionRepository(vclib.Repository):
 
   def get_location(self, path, rev, old_rev):
     try:
-      results = _svn_ra.svn_get_locations(
+      results = _svn_ra.svn_ra_get_locations(
                       self.ra_session, path, rev, [old_rev], self.scratch_pool)
     except _svn.SVNerr, e:
       if e.get_code() == _svn.SVN_ERR_FS_NOT_FOUND:

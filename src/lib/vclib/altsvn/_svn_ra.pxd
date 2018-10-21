@@ -39,7 +39,7 @@ cdef class py_svn_log_entry(object):
         cdef public object changed_paths2
     IF SVN_API_VER >= (1, 7):
         cdef public object non_inheritable
-        cdef public object substractive_merge
+        cdef public object subtractive_merge
     IF SVN_API_VER >= (1, 5):
         cdef void bind(self, const _c_.svn_log_entry_t *_c_ptr,
                 _svn.Apr_Pool scratch_pool)

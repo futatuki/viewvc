@@ -137,10 +137,11 @@ cdef class Svn_error(object):
                 _c_msg = NULL
             self._c_error = _c_.svn_error_create(stat, NULL, _c_msg)
     cdef seterror(self, _c_.svn_error_t * err):
-        if self._c_error is NULL:
-            self._c_error = err
-        elif err is not NULL:
-            _c_.svn_error_compose(self._c_error, err)
+        if err is not NULL:
+            if self._c_error is NULL:
+                self._c_error = err
+            elif err is not NULL:
+                _c_.svn_error_compose(self._c_error, err)
         return self
     cdef _c_.svn_error_t * geterror(self):
         return self._c_error
@@ -171,8 +172,9 @@ cdef class Svn_error(object):
                 estr = eptr.decode('utf-8')
         return estr
     def __dealloc__(self):
-        if self._c_error is not NULL:
-            _c_.svn_error_clear(self._c_error)
+        # svn_error_clear allows to clear NULL
+        _c_.svn_error_clear(self._c_error)
+
 
 # Svn_error as exception
 class SVNerr(General):
@@ -855,6 +857,9 @@ cdef class HashTrans(TransPtr):
         cdef _c_.apr_ssize_t _c_klen
         cdef void * _c_val
 
+        if self._c_hash is NULL:
+            # Should we return None here?
+            return {}
         self.tmp_pool.clear()
         hi = _c_.apr_hash_first(
                     self.tmp_pool._c_pool, self._c_hash)

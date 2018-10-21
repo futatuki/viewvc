@@ -369,7 +369,9 @@ def list_directory(
             raise _svn.SVNerr(pyerr)
         IF SVN_API_VER < (1, 4):
             dirents = dirents_trans.to_object()
+            del dirents_trans
             locks   = locks_trans.to_object()
+            del locks_trans
     finally:
         _c_.apr_pool_destroy(_c_tmp_pool)
     IF SVN_API_VER >= (1, 4):
@@ -706,11 +708,11 @@ IF SVN_API_VER >= (1, 6):
             assert ptr is not NULL
             self.action = chr(ptr[0].action)
             if ptr[0].copyfrom_path is NULL:
-                self[0].copyfrom_path = None
-                self[0].copyfrom_rev = None
+                self.copyfrom_path = None
+                self.copyfrom_rev = None
             else:
-                self[0].copyfrom_path = <bytes>(ptr[0].copyfrom_path)
-                self[0].copyfrom_rev  = <bytes>(ptr[0].copyfrom_rev)
+                self.copyfrom_path = <bytes>(ptr[0].copyfrom_path)
+                self.copyfrom_rev  = ptr[0].copyfrom_rev
             self.node_kind = ptr[0].node_kind
             IF SVN_API_VER >= (1, 7):
                 self.text_modified  = ptr[0].text_modified
@@ -743,11 +745,11 @@ cdef class py_svn_log_changed_path_ref(object):
         assert ptr is not NULL
         self.action = chr(ptr[0].action)
         if ptr[0].copyfrom_path is NULL:
-            self[0].copyfrom_path = None
-            self[0].copyfrom_rev = None
+            self.copyfrom_path = None
+            self.copyfrom_rev = None
         else:
-            self[0].copyfrom_path = <bytes>(ptr[0].copyfrom_path)
-            self[0].copyfrom_rev  = <bytes>(ptr[0].copyfrom_rev)
+            self.copyfrom_path = <bytes>(ptr[0].copyfrom_path)
+            self.copyfrom_rev  = ptr[0].copyfrom_rev
         return self
 
 cdef class SvnLogChangedPathTrans(_svn.TransPtr):
@@ -794,7 +796,7 @@ cdef class py_svn_log_entry(object):
                 self.changed_paths = {}
             else:
                 cp_trans = _svn.HashTrans(_svn.CStringTransBytes(),
-                                          _svn.SvnLogChangedPathTrans(),
+                                          SvnLogChangedPathTrans(),
                                           tmp_pool)
                 try:
                     cp_trans.set_ptr(<void *>(_c_ptr[0].changed_paths))
@@ -823,7 +825,7 @@ cdef class py_svn_log_entry(object):
                 else:
                     cp2_trans = _svn.HashTrans(
                                             _svn.CStringTransBytes(),
-                                            _svn.SvnLogChangedPath2Trans(),
+                                            SvnLogChangedPath2Trans(),
                                             tmp_pool)
                     try:
                         cp2_trans.set_ptr(<void *>(_c_ptr[0].changed_paths2))
@@ -901,9 +903,10 @@ IF SVN_API_VER >= (1, 5):
 
         btn = <_svn.CbContainer>_c_baton
         log_entry = py_svn_log_entry()
+        _c_err = NULL
         try:
             log_entry.bind(_c_log_entry, btn.pool)
-            btn.fnobj(btn, log_entry, btn.pool)
+            btn.fnobj(btn.btn, log_entry, btn.pool)
         except _svn.SVNerr as serr:
             svnerr = serr.svnerr
             _c_err = _c_.svn_error_dup(svnerr.geterror())
@@ -944,11 +947,12 @@ ELSE:
 
         btn = <_svn.CbContainer>_c_baton
         log_entry = py_svn_log_entry()
+        _c_err = NULL
         try:
             log_entry.bind(
                     _c_changed_paths, _c_revision, _c_author, _c_date,
                     _c_message, btn.pool)
-            btn.fnobj(btn, log_entry, btn.pool)
+            btn.fnobj(btn.btn, log_entry, btn.pool)
         except _svn.SVNerr as serr:
             svnerr = serr.svnerr
             _c_err = _c_.svn_error_dup(svnerr.geterror())
@@ -982,7 +986,7 @@ ELSE:
 def client_log(
         const char * url, object start_rev, object end_rev, int log_limit,
         object include_changes, object cross_copies, object cb_func,
-        _svn.svn_client_ctx_t ctx, object scratch_pool=None):
+        object baton, _svn.svn_client_ctx_t ctx, object scratch_pool=None):
     cdef _svn.Apr_Pool tmp_pool
     cdef _svn.svn_opt_revision_t opt_start_rev
     cdef _svn.svn_opt_revision_t opt_end_rev
@@ -1019,7 +1023,7 @@ def client_log(
     try:
         targets = [<bytes>url]
         _c_targets = _bytes_list_to_apr_array(targets, tmp_pool._c_pool)
-        btn = _svn.CbContainer(cb_func, None, tmp_pool)
+        btn = _svn.CbContainer(cb_func, baton, tmp_pool)
         IF SVN_API_VER >= (1, 6):
             rev_ranges = [_svn.svn_opt_revision_range_t(opt_start_rev,
                                                         opt_end_rev)]
@@ -1093,6 +1097,7 @@ IF SVN_API_VER >= (1, 5):
                             "_cb_simple_proplist_receiver has been called "
                             "more than once")
             return _c_err
+        _c_err = NULL
         if _c_prop_hash is NULL:
             baton.append({})
         else:
@@ -1209,8 +1214,11 @@ def simple_proplist(
             raise _svn.SVNerr(pyerr)
         IF SVN_API_VER > (1, 5):
             # extract props from array
-            assert len(propdic_list) == 1
-            propdic = propdic_list[0]
+            if propdic_list:
+                assert len(propdic_list) == 1
+                propdic = propdic_list[0]
+            else:
+                propdic = {}
         ELSE:
             # extract props from array
             assert _c_props is not NULL

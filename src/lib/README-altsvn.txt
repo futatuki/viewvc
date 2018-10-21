@@ -47,7 +47,10 @@ DEF SVN_USE_DOS_PATHS = 0
 
 
 [To do]
-* implement remote repository access (working in progress)
+* implement debug remote repository access
+  - annotation does not work
+  - temporary file removing issue (duplicated remove action ?)
+* implement driver for bin/svnadmin.py
 * maintain build process. at least configuration phase to configure
   build environment semi-automatically is needed.
 * maintain install process
