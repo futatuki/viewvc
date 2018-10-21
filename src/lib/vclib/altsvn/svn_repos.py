@@ -322,10 +322,12 @@ class LocalSubversionRepository(vclib.Repository):
                                 {'svn_cross_copies': 1})
     youngest_rev, youngest_path = history[0]
     oldest_rev, oldest_path = history[-1]
-    source = _svn_repos._get_annotated_source(
+    ctx = _svn.setup_client_ctx(self.config_dir, self.scratch_pool)
+    source = _svn._get_annotated_source(
                     _svn.rootpath2url(self.rootpath, path), youngest_rev,
-                    oldest_rev, _blame_cb, self.config_dir, include_text,
+                    oldest_rev, _blame_cb, ctx, include_text,
                     self.scratch_pool)
+    del ctx
     self.scratch_pool.clear()
     return source, youngest_rev
 

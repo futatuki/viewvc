@@ -169,3 +169,12 @@ cdef class py_io_stream(svn_stream_t):
 cdef class py_stream(svn_stream_t):
     cdef _py_generic_stream_baton baton
 
+
+cdef class svn_client_ctx_t(object):
+    cdef _c_.svn_client_ctx_t * _c_ctx
+    cdef Apr_Pool pool
+    cdef svn_client_ctx_t set_ctx(self, _c_.svn_client_ctx_t * ctx, pool)
+
+
+cpdef svn_client_ctx_t setup_client_ctx(
+        object config_dir, object result_pool=?)

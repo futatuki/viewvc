@@ -2,6 +2,7 @@ include "_svn_api_ver.pxi"
 include "_py_ver.pxi"
 from libc.stdlib cimport atexit
 from libc.stddef cimport size_t
+from libc.stdint cimport int64_t
 from libc.string cimport memcpy
 from cpython cimport Py_buffer
 from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
@@ -1971,3 +1972,378 @@ cdef class py_stream(svn_stream_t):
                 _c_.svn_stream_set_readline(self._c_ptr, NULL)
             self.baton.readline_fn = readline_fn
 
+
+cdef class svn_client_ctx_t(object):
+    # cdef _c_.svn_client_ctx_t * _c_ctx
+    # cdef Apr_Pool pool
+    cdef svn_client_ctx_t set_ctx(self, _c_.svn_client_ctx_t * _c_ctx, pool):
+        assert pool is None or (<Apr_Pool?>pool)._c_pool is not NULL
+        self.pool = pool
+        assert _c_ctx is not NULL
+        self._c_ctx = _c_ctx
+        return self
+
+
+# custom version of svn_client_ctx*()
+cpdef svn_client_ctx_t setup_client_ctx(
+        object config_dir, object result_pool=None):
+    cdef const char * _c_config_dir
+    cdef Apr_Pool r_pool
+    cdef _c_.svn_error_t * serr
+    cdef Svn_error pyerr
+    cdef _c_.apr_hash_t * _c_cfg_hash
+    cdef _c_.svn_client_ctx_t * _c_ctx
+    cdef _c_.svn_auth_baton_t * _c_auth_baton
+    cdef svn_client_ctx_t ctx
+    IF SVN_API_VER >= (1, 6):
+        cdef _c_.svn_config_t * _c_cfg
+    ELSE:
+        cdef _c_.apr_array_header_t * _c_providers
+        cdef _c_.svn_auth_provider_object_t * _c_provider
+
+    if result_pool is not None:
+        assert (<Apr_Pool?>result_pool)._c_pool is not NULL
+        r_pool = result_pool
+    else:
+        r_pool = _root_pool
+    assert isinstance(config_dir, bytes) or config_dir is None
+    _c_config_dir = <char *>config_dir if config_dir else NULL
+
+    serr = _c_.svn_config_ensure(_c_config_dir, r_pool._c_pool)
+    if serr is not NULL:
+        pyerr = Svn_error().seterror(serr)
+        raise SVNerr(pyerr)
+    serr = _c_.svn_config_get_config(
+                    &_c_cfg_hash, _c_config_dir, r_pool._c_pool)
+
+    if serr is not NULL:
+        pyerr = Svn_error().seterror(serr)
+        raise SVNerr(pyerr)
+    IF SVN_API_VER >= (1, 8):
+        serr = _c_.svn_client_create_context2(
+                        &_c_ctx, _c_cfg_hash, r_pool._c_pool)
+        if serr is not NULL:
+            pyerr = Svn_error().seterror(serr)
+            raise SVNerr(pyerr)
+    ELSE:
+        serr = _c_.svn_client_create_context(&_c_ctx, r_pool._c_pool)
+        if serr is not NULL:
+            pyerr = Svn_error().seterror(serr)
+            raise SVNerr(pyerr)
+        _c_ctx[0].config = _c_cfg_hash
+    IF SVN_API_VER >= (1, 6):
+        _c_cfg = <_c_.svn_config_t *>_c_.apr_hash_get(
+                            _c_cfg_hash, _c_.SVN_CONFIG_CATEGORY_CONFIG,
+                            _c_.APR_HASH_KEY_STRING)
+        IF SVN_API_VER >= (1, 9):
+            serr = _c_.svn_cmdline_create_auth_baton2(
+                        &_c_auth_baton, _c_.TRUE, NULL, NULL,
+                        _c_config_dir, _c_.TRUE,
+                        _c_.TRUE, _c_.TRUE, _c_.TRUE, _c_.TRUE, _c_.TRUE,
+                        _c_cfg, NULL, NULL, r_pool._c_pool)
+        ELSE:
+            serr = _c_.svn_cmdline_create_auth_baton(
+                        &_c_auth_baton, _c_.TRUE, NULL, NULL,
+                        _c_config_dir,  _c_.TRUE, _c_.TRUE,
+                        _c_cfg, NULL, NULL, r_pool._c_pool)
+        if serr is not NULL:
+            pyerr = Svn_error().seterror(serr)
+            raise SVNerr(pyerr)
+    ELSE:
+        _c_providers = _c_.apr_array_make(
+                            r_pool._c_pool, 5,
+                            sizeof(_c_.svn_auth_provider_object_t *))
+        if _c_providers is NULL:
+            serr = _c_.svn_error_create(_c_.APR_ENOMEM, NULL, NULL)
+            pyerr = Svn_error().seterror(serr)
+            raise SVNerr(pyerr)
+        IF SVN_API_VER >= (1, 4):
+            _c_.svn_auth_get_simple_provider(&_c_provider, r_pool._c_pool)
+            (<void **>(_c_.apr_array_push(_c_providers)))[0] = (
+                    <void *>_c_provider)
+            _c_.svn_auth_get_username_provider(&_c_provider, r_pool._c_pool)
+            (<void **>(_c_.apr_array_push(_c_providers)))[0] = (
+                    <void *>_c_provider)
+            _c_.svn_auth_get_ssl_server_trust_file_provider(
+                            &_c_provider, r_pool._c_pool)
+            (<void **>(_c_.apr_array_push(_c_providers)))[0] = (
+                    <void *>_c_provider)
+            _c_.svn_auth_get_ssl_client_cert_file_provider(
+                            &_c_provider, r_pool._c_pool)
+            (<void **>(_c_.apr_array_push(_c_providers)))[0] = (
+                    <void *>_c_provider)
+            _c_.svn_auth_get_ssl_client_cert_pw_file_provider(
+                            &_c_provider, r_pool._c_pool)
+            (<void **>(_c_.apr_array_push(_c_providers)))[0] = (
+                    <void *>_c_provider)
+        ELSE:
+            _c_.svn_client_get_simple_provider(&_c_provider, r_pool._c_pool)
+            (<void **>(_c_.apr_array_push(_c_providers)))[0] = (
+                    <void *>_c_provider)
+            _c_.svn_client_get_username_provider(&_c_provider, r_pool._c_pool)
+            (<void **>(_c_.apr_array_push(_c_providers)))[0] = (
+                    <void *>_c_provider)
+            _c_.svn_client_get_ssl_server_trust_file_provider(
+                            &_c_provider, r_pool._c_pool)
+            (<void **>(_c_.apr_array_push(_c_providers)))[0] = (
+                    <void *>_c_provider)
+            _c_.svn_client_get_ssl_client_cert_file_provider(
+                            &_c_provider, r_pool._c_pool)
+            (<void **>(_c_.apr_array_push(_c_providers)))[0] = (
+                    <void *>_c_provider)
+            _c_.svn_client_get_ssl_client_cert_pw_file_provider(
+                            &_c_provider, r_pool._c_pool)
+            (<void **>(_c_.apr_array_push(_c_providers)))[0] = (
+                    <void *>_c_provider)
+        _c_.svn_auth_open(&_c_auth_baton, _c_providers, r_pool._c_pool)
+    _c_ctx[0].auth_baton = _c_auth_baton
+    ctx = svn_client_ctx_t().set_ctx(_c_ctx, r_pool)
+    return ctx
+
+# _get_annotated_source() ... helper for LocalSubversionRepository.annotate()
+# custom baton for _get_annotated_source()
+cdef class CbBlameContainer(object):
+    cdef object fnobj
+    cdef public object btn
+    cdef public _c_.svn_revnum_t first_rev
+    cdef public object include_text
+    def __cinit__(
+            self, fnobj, btn, first_rev=_c_.SVN_INVALID_REVNUM,
+            include_text=False, **m):
+        self.fnobj = fnobj
+        self.btn = btn
+        self.first_rev = first_rev
+        self.include_text = include_text
+
+# call back functions for _get_annotated_source
+IF SVN_API_VER >= (1, 7):
+    # svn_client_blame_receiver3_t
+    cdef _c_.svn_error_t * _cb_get_annotated_source3(
+            void * _c_baton,
+            _c_.svn_revnum_t _c_start_revnum, _c_.svn_revnum_t _c_end_revnum,
+            _c_.apr_int64_t _c_line_no,
+            _c_.svn_revnum_t _c_revision, _c_.apr_hash_t * _c_rev_props,
+            _c_.svn_revnum_t _c_merged_revision,
+            _c_.apr_hash_t * _c_merged_rev_props,
+            const char * _c_merged_path,
+            const char * _c_line, _c_.svn_boolean_t _c_local_change,
+            _c_.apr_pool_t * _c_pool) with gil:
+        cdef _c_.svn_error_t * _c_err
+        cdef object serr
+        cdef Svn_error svnerr
+        cdef CbBlameContainer btn
+        cdef SvnStringTransStr trans_svn_string
+        cdef SvnStringTransBytes trans_svn_string_bytes
+        cdef _c_.svn_string_t * _c_author
+        cdef object author
+        cdef _c_.svn_string_t * _c_date_string
+        cdef object date_string
+        cdef _c_.apr_time_t _c_date
+        cdef object date
+
+        btn = <CbBlameContainer>_c_baton
+        # extract author
+        _c_author = <_c_.svn_string_t *>_c_.apr_hash_get(
+                            _c_rev_props, _c_.SVN_PROP_REVISION_AUTHOR,
+                            _c_.APR_HASH_KEY_STRING)
+        trans_svn_string = SvnStringTransStr()
+        trans_svn_string.set_ptr(_c_author)
+        author = trans_svn_string.to_object()
+        # extract date
+        date = None
+        _c_date_string = <_c_.svn_string_t *>_c_.apr_hash_get(
+                            _c_rev_props, _c_.SVN_PROP_REVISION_DATE,
+                            _c_.APR_HASH_KEY_STRING)
+        if _c_date_string is not NULL:
+            trans_svn_string_bytes = SvnStringTransBytes()
+            trans_svn_string_bytes.set_ptr(_c_date_string)
+            date_string = trans_svn_string_bytes.to_object()
+            if date_string:
+                _c_err = _c_.svn_time_from_cstring(
+                                    &_c_date, date_string, _c_pool)
+                if _c_err is NULL:
+                    date = <int64_t>(_c_date / 1000000)
+        _c_err = NULL
+        try:
+            btn.fnobj(btn, _c_line_no, _c_revision, author, date,
+                        <bytes>_c_line)
+        except SVNerr as serr:
+            svnerr = serr.svnerr
+            _c_err = _c_.svn_error_dup(svnerr.geterror())
+            del serr
+        except AssertionError as err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_ASSERTION_FAIL, NULL, str(err))
+        except KeyboardInterrupt as err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_CANCELLED, NULL, str(err))
+        except BaseException as err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_BASE, NULL, str(err))
+        return _c_err
+ELIF SVN_API_VER >= (1, 5):
+    # svn_client_blame_receiver2_t
+    cdef _c_.svn_error_t * _cb_get_annotated_source2(
+            void * _c_baton, _c_.apr_int64_t _c_line_no,
+            _c_.svn_revnum_t _c_revision,
+            const char * _c_author, const char * _c_date_string,
+            _c_.svn_revnum_t _c_merged_revision, const char * _c_merged_author,
+            const char * _c_merged_date_string, const char * _c_merged_path,
+            const char * _c_line, _c_.apr_pool_t * _c_pool) with gil:
+        cdef _c_.svn_error_t * _c_err
+        cdef object serr
+        cdef Svn_error svnerr
+        cdef CbBlameContainer btn
+        cdef _c_.apr_time_t _c_date
+        cdef object date
+
+        btn = <CbBlameContainer>_c_baton
+        # extract date
+        if _c_date_string is not NULL and _c_date_string[0] != 0:
+            _c_err = _c_.svn_time_from_cstring(
+                                &_c_date, _c_date_string, _c_pool)
+            if _c_err is NULL:
+                date = <int64_t>(_c_date / 1000000)
+        else:
+            date = None
+        _c_err = NULL
+        try:
+            btn.fnobj(btn, _c_line_no, _c_revision, <bytes>_c_author, date,
+                        <bytes>_c_line)
+        except SVNerr as serr:
+            svnerr = serr.svnerr
+            _c_err = _c_.svn_error_dup(svnerr.geterror())
+            del serr
+        except AssertionError as err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_ASSERTION_FAIL, NULL, str(err))
+        except KeyboardInterrupt as err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_CANCELLED, NULL, str(err))
+        except BaseException as err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_BASE, NULL, str(err))
+        return _c_err
+ELSE:
+    # svn_client_blame_receiver_t
+    # just same as _cb_get_annotated_source2 except function signature
+    cdef _c_.svn_error_t * _cb_get_annotated_source(
+            void * _c_baton, _c_.apr_int64_t _c_line_no,
+            _c_.svn_revnum_t _c_revision,
+            const char * _c_author, const char * _c_date_string,
+            const char * _c_line, _c_.apr_pool_t * _c_pool) with gil:
+        cdef _c_.svn_error_t * _c_err
+        cdef object serr
+        cdef Svn_error svnerr
+        cdef CbBlameContainer btn
+        cdef _c_.apr_time_t _c_date
+        cdef object date
+
+        btn = <CbBlameContainer>_c_baton
+        # extract date
+        if _c_date_string is not NULL and _c_date_string[0] != 0:
+            _c_err = _c_.svn_time_from_cstring(
+                                &_c_date, _c_date_string, _c_pool)
+            if _c_err is NULL:
+                date = <int64_t>(_c_date / 1000000)
+        else:
+            date = None
+        _c_err = NULL
+        try:
+            btn.fnobj(btn, _c_line_no, _c_revision, <bytes>_c_author, date,
+                        <bytes>_c_line)
+        except SVNerr as serr:
+            svnerr = serr.svnerr
+            _c_err = _c_.svn_error_dup(svnerr.geterror())
+            del serr
+        except AssertionError as err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_ASSERTION_FAIL, NULL, str(err))
+        except KeyboardInterrupt as err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_CANCELLED, NULL, str(err))
+        except BaseException as err:
+            _c_err = _c_.svn_error_create(
+                        _c_.SVN_ERR_BASE, NULL, str(err))
+        return _c_err
+
+def _get_annotated_source(
+        const char * path_or_url, object rev, object oldest_rev,
+        object blame_func, svn_client_ctx_t ctx, object include_text=False,
+        object scratch_pool=None):
+    cdef svn_opt_revision_t opt_rev
+    cdef svn_opt_revision_t opt_oldest_rev
+    cdef _c_.apr_status_t ast
+    cdef _c_.apr_pool_t * _c_tmp_pool
+    cdef _c_.svn_error_t * serr
+    cdef Svn_error pyerr
+    cdef _c_.apr_hash_t * _c_cfg_hash
+    cdef _c_.apr_array_header_t * _c_empty_array
+    cdef _c_.svn_auth_baton_t * _c_auth_baton
+    cdef list ann_list
+    cdef CbBlameContainer btn
+    IF SVN_API_VER >= (1, 5):
+        cdef _c_.svn_diff_file_options_t * _c_diff_opt
+
+    opt_rev = svn_opt_revision_t(_c_.svn_opt_revision_number, rev)
+    opt_oldest_rev = svn_opt_revision_t(_c_.svn_opt_revision_number,
+                                                  oldest_rev)
+    assert callable(blame_func)
+    if scratch_pool is not None:
+        assert (<Apr_Pool?>scratch_pool)._c_pool is not NULL
+        ast = _c_.apr_pool_create(
+                        &_c_tmp_pool, (<Apr_Pool>scratch_pool)._c_pool)
+    else:
+        (<Apr_Pool>_scratch_pool).clear()
+        ast = _c_.apr_pool_create(
+                        &_c_tmp_pool,
+                        (<Apr_Pool?>_scratch_pool)._c_pool)
+    if ast:
+        raise PoolError()
+    try:
+        ann_list = []
+        btn = CbBlameContainer(
+                    blame_func, ann_list, oldest_rev, include_text)
+        IF SVN_API_VER >= (1, 4):
+            _c_diff_opt = _c_.svn_diff_file_options_create(_c_tmp_pool)
+        IF SVN_API_VER >= (1, 7):
+            serr = _c_.svn_client_blame5(
+                        path_or_url,
+                        &(opt_rev._c_opt_revision),
+                        &(opt_oldest_rev._c_opt_revision),
+                        &(opt_rev._c_opt_revision),
+                        _c_diff_opt, _c_.FALSE, _c_.FALSE,
+                        _cb_get_annotated_source3, <void *>btn,
+                        ctx._c_ctx, _c_tmp_pool)
+        ELIF SVN_API_VER >= (1, 5):
+            serr = _c_.svn_client_blame4(
+                        path_or_url,
+                        &(opt_rev._c_opt_revision),
+                        &(opt_oldest_rev._c_opt_revision),
+                        &(opt_rev._c_opt_revision),
+                        _c_diff_opt, _c_.FALSE, _c_.FALSE,
+                        _cb_get_annotated_source2, <void *>btn,
+                        ctx._c_ctx, _c_tmp_pool)
+        ELIF SVN_API_VER >= (1, 4):
+            serr = _c_.svn_client_blame3(
+                        path_or_url,
+                        &(opt_rev._c_opt_revision),
+                        &(opt_oldest_rev._c_opt_revision),
+                        &(opt_rev._c_opt_revision),
+                        _c_diff_opt, _c_.FALSE,
+                        _cb_get_annotated_source, <void *>btn,
+                        ctx._c_ctx, _c_tmp_pool)
+        ELSE:
+            serr = _c_.svn_client_blame2(
+                        path_or_url,
+                        &(opt_rev._c_opt_revision),
+                        &(opt_oldest_rev._c_opt_revision),
+                        &(opt_rev._c_opt_revision),
+                        _cb_get_annotated_source, <void *>btn,
+                        ctx._c_ctx, _c_tmp_pool)
+        if serr is not NULL:
+            pyerr = Svn_error().seterror(serr)
+            raise SVNerr(pyerr)
+    finally:
+        _c_.apr_pool_destroy(_c_tmp_pool)
+    return ann_list

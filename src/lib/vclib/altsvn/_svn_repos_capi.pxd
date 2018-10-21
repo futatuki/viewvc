@@ -14,9 +14,3 @@ from subversion_1.svn_delta cimport *
 from subversion_1.svn_repos cimport *
 from subversion_1.svn_string cimport *
 from subversion_1.svn_props cimport *
-from subversion_1.svn_time cimport svn_time_from_cstring
-from subversion_1.svn_config cimport *
-from subversion_1.svn_client cimport *
-from subversion_1.svn_auth cimport *
-from subversion_1.svn_opt cimport *
-from subversion_1.svn_diff cimport *

@@ -20,3 +20,7 @@ from subversion_1.svn_string cimport *
 from subversion_1.svn_io cimport *
 IF SVN_API_VER >= (1, 6):
     from subversion_1.svn_dirent_uri cimport *
+    from subversion_1.svn_cmdline cimport *
+from subversion_1.svn_diff cimport *
+from subversion_1.svn_config cimport *
+from subversion_1.svn_client cimport *

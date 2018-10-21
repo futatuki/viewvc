@@ -144,7 +144,7 @@ class RemoteSubversionRepository(vclib.Repository):
 
   def open(self):
     # Setup the client context baton, complete with non-prompting authstuffs.
-    self.ctx = _svn_ra.setup_client_ctx(self.config_dir, self.result_pool)
+    self.ctx = _svn.setup_client_ctx(self.config_dir, self.result_pool)
     self.ra_session = _svn_ra.open_session_with_ctx(self.rootpath, self.ctx)
 
     self.youngest = _svn_ra.svn_ra_get_latest_revnum(
@@ -313,6 +313,26 @@ class RemoteSubversionRepository(vclib.Repository):
     return pairs and pairs[0][1] or {}
 
   def annotate(self, path_parts, rev, include_text=False):
+    def _blame_cb(btn, line_no, revision, author, date,
+                  line):
+      prev_rev = None
+      if revision > 1:
+        prev_rev = revision - 1
+
+      # If we have an invalid revision, clear the date and author
+      # values.  Otherwise, if we have authz filtering to do, use the
+      # revinfo cache to do so.
+      if revision < 0:
+        date = author = None
+      elif self.auth:
+        date, author, msg, revprops, changes = self._revinfo(revision)
+
+      # Strip text if the caller doesn't want it.
+      if not btn.include_text:
+        line = None
+      btn.btn.append(vclib.Annotation(line, line_no + 1, revision, prev_rev,
+                                         author, date))
+    # annotate() body
     path = self._getpath(path_parts)
     if self.itemtype(path_parts, rev) != vclib.FILE:  # does auth-check
       raise vclib.Error("Path '%s' is not a file." % path)
@@ -331,30 +351,10 @@ class RemoteSubversionRepository(vclib.Repository):
     # Now calculate the annotation data.  Note that we'll not
     # inherently trust the provided author and date, because authz
     # rules might necessitate that we strip that information out.
-    blame_data = []
-
-    def _blame_cb(line_no, revision, author, date,
-                  line, pool, blame_data=blame_data):
-      prev_rev = None
-      if revision > 1:
-        prev_rev = revision - 1
-
-      # If we have an invalid revision, clear the date and author
-      # values.  Otherwise, if we have authz filtering to do, use the
-      # revinfo cache to do so.
-      if revision < 0:
-        date = author = None
-      elif self.auth:
-        date, author, msg, revprops, changes = self._revinfo(revision)
-
-      # Strip text if the caller doesn't want it.
-      if not include_text:
-        line = None
-      blame_data.append(vclib.Annotation(line, line_no + 1, revision, prev_rev,
-                                         author, date))
-
-    client.blame2(url, _rev2optrev(rev), _rev2optrev(oldest_rev),
-                  _rev2optrev(rev), _blame_cb, self.ctx)
+    blame_data = _svn.get_annotated_source(
+                        url, rev, oldest_rev, _blame_cb, self.ctx,
+                        include_text, self.scratch_pool)
+    self.scratch_pool.clear()
     return blame_data, rev
 
   def revinfo(self, rev):
