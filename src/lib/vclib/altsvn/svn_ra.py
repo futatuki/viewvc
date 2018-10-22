@@ -354,7 +354,7 @@ class RemoteSubversionRepository(vclib.Repository):
     # Now calculate the annotation data.  Note that we'll not
     # inherently trust the provided author and date, because authz
     # rules might necessitate that we strip that information out.
-    blame_data = _svn.get_annotated_source(
+    blame_data = _svn._get_annotated_source(
                         url, rev, oldest_rev, _blame_cb, self.ctx,
                         include_text, self.scratch_pool)
     self.scratch_pool.clear()
