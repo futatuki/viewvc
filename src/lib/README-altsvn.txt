@@ -19,9 +19,8 @@ Python 3.x yet, but uses bridge module to access C API, written in Cython.
 [tested environment]
 * Python 2.1.15 / Cython 0.28 / Subversion 1.10.0 / FreeBSD 11
 * Python 2.6.6  / Cython 0.29 / Subversion 1.9.7  / Scientific Linux 6
-  (local repository only)
 * Python 2.6.6  / Cython 0.29 / Subversion 1.8.14 / CentOS 6
-  (local repository only)
+
 
 [How to build]
 (1) move to src/lib subdirectory
