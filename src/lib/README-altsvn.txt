@@ -4,9 +4,7 @@ vclib.altsvn --- alternative module to access Subversion repository for ViewVC
 This is one of replacement of vclib.svn module, to support Python 3.x.
 It doesn't use swig Python binding of Subversion API, which is not support
 Python 3.x yet, but uses bridge module to access C API, written in Cython.
-It is not support remote repository yet, and for Python 3.x, almost all
-features are not tested.
-
+(But it is not tested almost all on Python 3.x yet.)
 
 [Build Requirement]
 * Cython 0.28 or above (not tested in 0.27 and below, and it is obviously
@@ -21,8 +19,9 @@ features are not tested.
 [tested environment]
 * Python 2.1.15 / Cython 0.28 / Subversion 1.10.0 / FreeBSD 11
 * Python 2.6.6  / Cython 0.29 / Subversion 1.9.7  / Scientific Linux 6
+  (local repository only)
 * Python 2.6.6  / Cython 0.29 / Subversion 1.8.14 / CentOS 6
-
+  (local repository only)
 
 [How to build]
 (1) move to src/lib subdirectory
@@ -47,9 +46,6 @@ DEF SVN_USE_DOS_PATHS = 0
 
 
 [To do]
-* implement debug remote repository access
-  - annotation does not work
-  - temporary file removing issue (duplicated remove action ?)
 * implement driver for bin/svnadmin.py
 * maintain build process. at least configuration phase to configure
   build environment semi-automatically is needed.
