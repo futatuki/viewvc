@@ -112,7 +112,7 @@ cdef class SvnRevnumPtrTrans(TransPtr):
 
 cdef class _py_stream_baton(object):
     cdef object baton
-    IF SVN_API_VER >= (1.7):
+    IF SVN_API_VER >= (1, 7):
         # placeholder to hold marks for mark/seek operation
         # we can use Python object allocation, so we use
         # svn_stream_mark_t as integer key of marks, and hold actual mark

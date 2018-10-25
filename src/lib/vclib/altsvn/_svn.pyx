@@ -17,6 +17,9 @@ import errno
 IF SVN_API_VER < (1, 7):
     import urllib
 
+IF PY_VERSION >= (3, 0, 0):
+    from . import _norm
+
 try:
     PathLike = os.PathLike
 except AttributeError:
