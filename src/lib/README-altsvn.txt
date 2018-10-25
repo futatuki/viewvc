@@ -20,12 +20,37 @@ Python 3.x yet, but uses bridge module to access C API, written in Cython.
 * Python 2.1.15 / Cython 0.28 / Subversion 1.10.0 / FreeBSD 11
 * Python 2.6.6  / Cython 0.29 / Subversion 1.9.7  / Scientific Linux 6
 * Python 2.6.6  / Cython 0.29 / Subversion 1.8.14 / CentOS 6
+  (with ViewVC 1.1.26)
 
 
 [How to build]
 (1) move to src/lib subdirectory
-(2) edit setup.py to make Cython to be able to find Apache Portable Runtime and
-   Subversion include file, and their libraries.
+(2) run "python setup.py config" to create config.py to store build parameter,
+  or write config.py by hand. Currently, semi-automatic config supports
+  Unix like environment only, and it may not work correctly.
+      In config.py, lome variables to hold include file directories and
+  library directory to build module are needed:
+
+      apr_include_dir : path to include files for APR (string)
+      svn_include_dir : path to include files for Subversion (string)
+      apr_lib_dir     : path to library files for APR (string)
+      svn_lib_dir     : path to library files for Subversion (string)
+      include_dirs    : list of include directory paths of APR and
+                        of Subversion (list of string)
+      library_dirs    : list of library directory paths of APR and
+                        of Subversion (list of string)
+
+  for example:
+-- BEGIN --
+apr_include_dir = "/usr/local/include/apr-1"
+svn_include_dir = "/usr/local/include/subversion-1"
+apr_lib_dir     = "/usr/local/lib"
+svn_lib_dir     = "/usr/local/lib"
+include_dirs    = ['/usr/local/include/apr-1',
+                   '/usr/local/include/subversion-1']
+library_dirs    = ['/usr/local/lib']
+-- END --
+
 (3) create cython/capi/subversion_1/_svn_api_ver.pxi to set Cython macro
     SVN_API_VER and  SVN_USE_DOS_PATHS. The content of the file is like
 -- BEGIN --
@@ -46,7 +71,6 @@ DEF SVN_USE_DOS_PATHS = 0
 
 [To do]
 * implement driver for bin/svnadmin.py
-* maintain build process. at least configuration phase to configure
-  build environment semi-automatically is needed.
+* maintain build process. step (3) can be done automatically.
 * maintain install process
 * create mechanism to switch module by configration file

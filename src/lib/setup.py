@@ -4,7 +4,9 @@
 import sys
 import os
 import os.path
+import shutil
 import platform
+import re
 from distutils.core import setup
 from Cython.Distutils.extension import Extension
 from Cython.Distutils import build_ext
@@ -13,9 +15,136 @@ from distutils.command.build import build as _build
 from distutils.command.clean import clean as _clean
 from distutils.cmd import Command
 
+build_base = os.path.abspath(os.path.dirname(sys.argv[0]))
+config_py = os.path.join(build_base, 'config.py')
+
 # Get access to our library modules.
 sys.path.insert(0, os.path.abspath(
-        os.path.join(os.path.dirname(sys.argv[0]), '../../lib')))
+        os.path.join(build_base, '../../lib')))
+
+# make sure import config module from build_base
+sys.path.insert(0, build_base)
+
+try:
+    from config import apr_include_dir, svn_include_dir, apr_lib_dir,\
+                       svn_lib_dir, include_dirs, library_dirs
+    config_done = True
+except:
+    apr_include_dir = None
+    svn_include_dir = None
+    apr_lib_dir = None
+    svn_lib_dir = None
+    include_dirs = []
+    library_dirs = []
+    config_done = False
+
+
+def create_config_file(params=None):
+    # Fix me: library check may work only in Unix like platforms....
+    def check_dir(dir, path_parts):
+        for path in map((lambda x:os.path.join(dir, *x)), path_parts):
+            if os.path.isfile(path):
+                return os.path.dirname(path)
+        return None
+
+    def check_apr_include(dir):
+        return check_dir(dir, [['apr.h'], ['apr-1','apr.h']])
+
+    def check_svn_include(dir):
+        return check_dir(dir, [['svn_version.h'],
+                               ['subversion-1','svn_version.h']])
+    def check_apr_lib(dir):
+        return check_dir(dir,
+                         [['libapr-1.a'], ['apr-1','libapr-1.a']])
+
+    def check_svn_lib(dir):
+        return check_dir(dir, [['libsvn_subr-1.a'],
+                               ['subversion-1','libsvn_subr-1.a']])
+
+
+    include_path_candidate = ['/usr/include', '/usr/local/include']
+    if (    os.path.lexists('/usr/lib64')
+        and re.match('.*64.*', platform.machine())):
+        lib_path_candidate = ['/usr/lib64', '/usr/local/lib64',
+                              '/usr/lib', '/usr/local/lib']
+    elif (    os.path.lexists('/usr/lib32')
+          and re.match('.*32.*', platform.machine())):
+        lib_path_candidate = ['/usr/lib32', '/usr/local/lib32',
+                              '/usr/lib', '/usr/local/lib']
+    else:
+        lib_path_candidate = ['/usr/lib', '/usr/local/lib']
+
+    if params and params.apr_include:
+        apr_include_path = check_apr_include(self.apr_include)
+    else:
+        for dir in include_path_candidate:
+            apr_include_dir = check_apr_include(dir)
+            if apr_include_dir:
+                break
+    if not apr_include_dir:
+        log.warn(
+"""cannot determine APR include path. please (re)run 'python setup.py config'
+with --apr-include=<apr-include-path> option
+""")
+        sys.exit(1)
+    if params and params.svn_include:
+        svn_include_dir = check_svn_include(self.svn_include)
+    else:
+        for dir in include_path_candidate:
+            svn_include_dir = check_svn_include(dir)
+            if svn_include_dir:
+                break
+    if not svn_include_dir:
+        log.warn(
+"""cannot determine Subversion include path. please (re)run
+'python setup.py config' with --svn-include=<svn-include-path> option
+""")
+        sys.exit(1)
+    if apr_include_dir == svn_include_dir:
+        include_dirs = [apr_include_dir]
+    else:
+        include_dirs = [apr_include_dir, svn_include_dir]
+
+    if params and params.apr_lib:
+        apr_lib_dir = check_apr_lib(self.apr_lib)
+    else:
+        for dir in lib_path_candidate:
+            apr_lib_dir = check_apr_lib(dir)
+            if apr_lib_dir:
+                break
+    if not apr_lib_dir:
+        log.warn(
+"""cannot determine APR library path. please (re)run 'python setup.py config'
+with --apr-lib=<apr-library-path> option
+""")
+        sys.exit(1)
+    if params and params.svn_lib:
+        svn_lib_dir = check_svn_lib(self.svn_lib)
+    else:
+        for dir in lib_path_candidate:
+            svn_lib_dir = check_svn_lib(dir)
+            if svn_lib_dir:
+                break
+    if not svn_lib_dir:
+        log.warn(
+"""cannot determine Subversion library path. please (re)run
+'python setup.py config' with --svn-lib=<subversion-library-path> option
+""")
+        sys.exit(1)
+    if apr_lib_dir == svn_lib_dir:
+        library_dirs = [apr_lib_dir]
+    else:
+        library_dirs = [apr_lib_dir, svn_lib_dir]
+
+    fp = open(config_py, "wt")
+    fp.write('apr_include_dir = "{0}"\n'.format(apr_include_dir))
+    fp.write('svn_include_dir = "{0}"\n'.format(svn_include_dir))
+    fp.write('apr_lib_dir     = "{0}"\n'.format(apr_lib_dir))
+    fp.write('svn_lib_dir     = "{0}"\n'.format(svn_lib_dir))
+    fp.write('include_dirs    = {0}\n'.format(repr(include_dirs)))
+    fp.write('library_dirs    = {0}\n'.format(repr(library_dirs)))
+    fp.close
+    return
 
 class build(_build):
     sub_commands = [('pre_build', None)] + _build.sub_commands
@@ -30,8 +159,16 @@ class pre_build(Command):
     def finalize_options(self):
         return
     def run(self):
+        if not config_done:
+            self.warn(
+"""fail to import module 'config': Please (re)run
+
+    $ python setup.py config
+
+with appropriate options.""")
+            sys.exit(1)
         # put target python version into pxi file
-        pxi_file='vclib/altsvn/_py_ver.pxi'
+        pxi_file=os.path.join(build_base, 'vclib/altsvn/_py_ver.pxi')
         if os.path.lexists(pxi_file):
             os.remove(pxi_file)
         f = open(pxi_file, 'w')
@@ -42,26 +179,59 @@ class pre_build(Command):
         f.close()
         return
 
-intermediates = ['vclib/altsvn/_py_ver.pxi',
-                 'vclib/altsvn/_svn.c',
-                 'vclib/altsvn/_svn_repos.c',
-                 'vclib/altsvn/_svn_ra.c']
+cython_include_dir = os.path.join(build_base, 'cython/capi')
+
+class config(Command):
+    description = "configure build envirionment"
+    user_options = [
+            ('apr-include=', None,
+                    "specify C include header path for apr-1"),
+            ('apr-lib=', None,
+                    "specify C library path for apr-1"),
+            ('svn-include=', None,
+                    "specify C include header path for Subversion"),
+            ('svn-lib=', None,
+                    "C library path for Subversion")]
+    boolean_options = []
+    help_options = []
+    def initialize_options(self):
+        self.apr_include=None
+        self.apr_lib=None
+        self.svn_include=None
+        self.svn_lib=None
+    def finalize_options(self):
+        return
+    def run(self):
+        create_config_file(self)
+        return
 
 class clean(_clean):
+    intermediates = ['vclib/altsvn/_py_ver.pxi',
+                     'vclib/altsvn/_svn.c',
+                     'vclib/altsvn/_svn_repos.c',
+                     'vclib/altsvn/_svn_ra.c']
+    all_targets = ['config.py', 'config.pyc', 'config.pyo', '__pycache__']
     def run(self):
         _clean.run(self)
-        for intf in intermediates:
-            if os.path.lexists(intf):
-                if os.path.islink(intf) or (not os.path.isdir(intf)):
-                     log.info("removing '%s'", intf)
-                if self.dry_run:
-                    continue 
-                os.remove(intf)
+        def do_remove(path):
+            if os.path.lexists(path):
+                if os.path.islink(path) or os.path.isfile(path):
+                    log.info("removing '%s'", path)
+                    if not self.dry_run:
+                        os.remove(path)
+                else:
+                    assert os.path.isdir(path)
+                    log.info("removing directory '%s'", path)
+                    if not self.dry_run:
+                        shutil.rmtree(path)
             else:
-                log.warn("'%s' does not exist -- can't clean it", intf)
+                log.warn("'%s' does not exist -- can't clean it", path)
 
-cython_include_dir = os.path.abspath(os.path.join(
-                            os.path.dirname(sys.argv[0]), 'cython/capi'))
+        for intf in self.intermediates:
+            do_remove(intf)
+        if self.all:
+            for path in self.all_targets:
+                do_remove(path)
 
 ext_modules = [
     Extension('vclib.altsvn._svn',
@@ -70,9 +240,8 @@ ext_modules = [
               cython_gdb=True,
               # Whmm.. compiler specific option ...
               #extra_compile_args=["-Wno-deprecated-declarations"],
-              include_dirs=["/usr/local/include/apr-1",
-                            "/usr/local/include/subversion-1"],
-              library_dirs=["/usr/local/lib"],
+              include_dirs=include_dirs,
+              library_dirs=library_dirs,
               libraries=["apr-1", "svn_subr-1", "svn_client-1"]),
     Extension('vclib.altsvn._svn_repos',
               ['vclib/altsvn/_svn_repos.pyx'],
@@ -80,9 +249,8 @@ ext_modules = [
               cython_gdb=True,
               # Whmm.. compiler specific option ...
               #extra_compile_args=["-Wno-deprecated-declarations"],
-              include_dirs=["/usr/local/include/apr-1",
-                            "/usr/local/include/subversion-1"],
-              library_dirs=["/usr/local/lib"],
+              include_dirs=include_dirs,
+              library_dirs=library_dirs,
               libraries=["apr-1", "svn_subr-1", "svn_fs-1", "svn_repos-1"]),
     Extension('vclib.altsvn._svn_ra',
               ['vclib/altsvn/_svn_ra.pyx'],
@@ -90,9 +258,8 @@ ext_modules = [
               cython_gdb=True,
               # Whmm.. compiler specific option ...
               #extra_compile_args=["-Wno-deprecated-declarations"],
-              include_dirs=["/usr/local/include/apr-1",
-                            "/usr/local/include/subversion-1"],
-              library_dirs=["/usr/local/lib"],
+              include_dirs=include_dirs,
+              library_dirs=library_dirs,
               libraries=["apr-1", "svn_subr-1", "svn_ra-1", "svn_client-1"]),
 ]
 
@@ -108,5 +275,6 @@ setup(name='vclib.altsvn',
     cmdclass = {'pre_build' : pre_build,
                 'build'     : build,
                 'build_ext' : build_ext,
-                'clean'     : clean}
+                'clean'     : clean,
+                'config'    : config}
 )

@@ -1,4 +1,8 @@
 build
+config.py
+config.pyc
+config.pyo
+__pycache__
 cython/capi/subversion-1/_svn_api_ver.pxi
 vclib/altsvn/_svn.c
 vclib/altsvn/_svn_fs.c
