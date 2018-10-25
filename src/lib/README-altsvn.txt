@@ -19,17 +19,21 @@ Python 3.x yet, but uses bridge module to access C API, written in Cython.
 [tested environment]
 * Python 2.1.15 / Cython 0.28 / Subversion 1.10.0 / FreeBSD 11
 * Python 2.6.6  / Cython 0.29 / Subversion 1.9.7  / Scientific Linux 6
-* Python 2.6.6  / Cython 0.29 / Subversion 1.8.14 / CentOS 6
-  (with ViewVC 1.1.26)
+* Python 2.6.6  / Cython 0.29 / Subversion 1.8.14 / CentOS 6 (with
+  ViewVC 1.1.26)
 
 
 [How to build]
-(1) move to src/lib subdirectory
-(2) run "python setup.py config" to create config.py to store build parameter,
-  or write config.py by hand. Currently, semi-automatic config supports
-  Unix like environment only, and it may not work correctly.
-      In config.py, lome variables to hold include file directories and
-  library directory to build module are needed:
+(1) Move to src/lib subdirectory
+(2) Run "python setup.py config".
+  It creates config.py, cython/capi/subversion_1/_svn_api_ver.pxi and
+vclib/altsvn/_svn_api_ver.pxi to store build parameter.
+Currently, semi-automatic config supports Unix like environment only,
+and it may not work correctly. If it is not work well, you must
+edit config.py and _svn_api_ver.pxi manually.
+
+In config.py, some variables to hold include file directories and
+library directory to build module are needed:
 
       apr_include_dir : path to include files for APR (string)
       svn_include_dir : path to include files for Subversion (string)
@@ -40,7 +44,8 @@ Python 3.x yet, but uses bridge module to access C API, written in Cython.
       library_dirs    : list of library directory paths of APR and
                         of Subversion (list of string)
 
-  for example:
+for example:
+
 -- BEGIN --
 apr_include_dir = "/usr/local/include/apr-1"
 svn_include_dir = "/usr/local/include/subversion-1"
@@ -51,15 +56,19 @@ include_dirs    = ['/usr/local/include/apr-1',
 library_dirs    = ['/usr/local/lib']
 -- END --
 
-(3) create cython/capi/subversion_1/_svn_api_ver.pxi to set Cython macro
-    SVN_API_VER and  SVN_USE_DOS_PATHS. The content of the file is like
+  The file cython/capi/subversion_1/_svn_api_ver.pxi defines Cython macro
+SVN_API_VER and SVN_USE_DOS_PATHS. The content of the file is like:
+
 -- BEGIN --
 DEF SVN_API_VER = (1, 10)
 DEF SVN_USE_DOS_PATHS = 0
 -- END --
-(4) create symlink lib/altsvn/_svn_api_ver.pxi point to
-    cython/capi/subversion_1/_svn_api_ver.pxi
-(5) run "python setup.py build"
+
+  It is also needed to be exists lib/altsvn/_svn_api_ver.pxi, as just same
+content as cython/capi/subversion_1/_svn_api_ver.pxi.  so symlink or copy
+from cython/capi/subversion_1/_svn_api_ver.pxi.
+
+(3) run "python setup.py build"
 
 
 [How to use]
@@ -71,6 +80,6 @@ DEF SVN_USE_DOS_PATHS = 0
 
 [To do]
 * implement driver for bin/svnadmin.py
-* maintain build process. step (3) can be done automatically.
+* improve build process
 * maintain install process
 * create mechanism to switch module by configration file

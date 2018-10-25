@@ -7,6 +7,7 @@ import os.path
 import shutil
 import platform
 import re
+import subprocess
 from distutils.core import setup
 from Cython.Distutils.extension import Extension
 from Cython.Distutils import build_ext
@@ -39,7 +40,7 @@ except:
     config_done = False
 
 
-def create_config_file(params=None):
+def create_config_files(params=None):
     # Fix me: library check may work only in Unix like platforms....
     def check_dir(dir, path_parts):
         for path in map((lambda x:os.path.join(dir, *x)), path_parts):
@@ -144,6 +145,44 @@ with --apr-lib=<apr-library-path> option
     fp.write('include_dirs    = {0}\n'.format(repr(include_dirs)))
     fp.write('library_dirs    = {0}\n'.format(repr(library_dirs)))
     fp.close
+    # build make_svn_api_version_pxi
+    cwd = os.getcwd()
+    try:
+        os.chdir(os.path.join(build_base, 'vclib/altsvn'))
+        subprocess.check_output(
+                ['cc',  '-I' + apr_include_dir,
+                 '-I' + svn_include_dir, '-o', 'make_svn_api_version_pxi',
+                 'make_svn_api_version_pxi.c'],
+                stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+        log.warn("Error while building 'make_svn_api_version_pxi'."
+                 " Compiler output is:\n" + e.output)
+        sys.exit(1)
+    # generate _svn_api_ver.pxi
+    pxi_file=os.path.join(build_base,
+                          'cython/capi/subversion_1/_svn_api_ver.pxi')
+    if os.path.lexists(pxi_file):
+        os.remove(pxi_file)
+    pxi_file=os.path.join(build_base, 'vclib/altsvn/_svn_api_ver.pxi')
+    if os.path.lexists(pxi_file):
+        os.remove(pxi_file)
+    try:
+        os.chdir(os.path.join(build_base, 'cython/capi/subversion_1'))
+        subprocess.check_output(
+                [os.path.join(build_base,
+                              'vclib/altsvn/make_svn_api_version_pxi')],
+                stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+        log.warn("Error while executing 'make_svn_api_version_pxi'."
+                 " Compiler output is:\n" + e.output)
+        sys.exit(1)
+    os.chdir(cwd)
+    try:
+        os.symlink('../../cython/capi/subversion_1/_svn_api_ver.pxi',
+                   os.path.join(build_base, 'vclib/altsvn/_svn_api_ver.pxi'))
+    except:
+        shutil.copy2(os.path.join(build_base, 'cython/capi/_svn_api_ver.pxi'),
+                     os.path.join(build_base, 'vclib/altsvn/_svn_api_ver.pxi'))
     return
 
 class build(_build):
@@ -177,9 +216,8 @@ with appropriate options.""")
                                            sys.version_info[2]))
                                     + '\n')
         f.close()
-        return
 
-cython_include_dir = os.path.join(build_base, 'cython/capi')
+cython_include_dir = os.path.join(build_base, 'cython', 'capi')
 
 class config(Command):
     description = "configure build envirionment"
@@ -202,15 +240,18 @@ class config(Command):
     def finalize_options(self):
         return
     def run(self):
-        create_config_file(self)
+        create_config_files(self)
         return
 
 class clean(_clean):
     intermediates = ['vclib/altsvn/_py_ver.pxi',
                      'vclib/altsvn/_svn.c',
                      'vclib/altsvn/_svn_repos.c',
-                     'vclib/altsvn/_svn_ra.c']
-    all_targets = ['config.py', 'config.pyc', 'config.pyo', '__pycache__']
+                     'vclib/altsvn/_svn_ra.c',
+                     'vclib/altsvn/make_svn_api_version_pxi']
+    all_targets = ['config.py', 'config.pyc', 'config.pyo', '__pycache__',
+                   'cython/capi/subversion_1/_svn_api_ver.pxi',
+                   'vclib/altsvn/_svn_api_ver.pxi']
     def run(self):
         _clean.run(self)
         def do_remove(path):
