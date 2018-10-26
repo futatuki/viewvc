@@ -42,25 +42,30 @@ except:
 
 def create_config_files(params=None):
     # Fix me: library check may work only in Unix like platforms....
-    def check_dir(dir, path_parts):
+    def check_dir(dir, path_parts, exts):
         for path in map((lambda x:os.path.join(dir, *x)), path_parts):
-            if os.path.isfile(path):
-                return os.path.dirname(path)
+            for ext in exts:
+                if os.path.isfile(path + ext):
+                    return os.path.dirname(path)
         return None
 
     def check_apr_include(dir):
-        return check_dir(dir, [['apr.h'], ['apr-1','apr.h']])
+        return check_dir(dir, [['apr'], ['apr-1','apr']], ['.h'])
 
     def check_svn_include(dir):
-        return check_dir(dir, [['svn_version.h'],
-                               ['subversion-1','svn_version.h']])
+        return check_dir(dir,
+                         [['svn_version'], ['subversion-1','svn_version']],
+                         ['.h'])
+
     def check_apr_lib(dir):
         return check_dir(dir,
-                         [['libapr-1.a'], ['apr-1','libapr-1.a']])
+                         [['libapr-1'], ['apr-1','libapr-1']],
+                         ['.a','.la'])
 
     def check_svn_lib(dir):
-        return check_dir(dir, [['libsvn_subr-1.a'],
-                               ['subversion-1','libsvn_subr-1.a']])
+        return check_dir(dir,
+                         [['libsvn_subr-1'], ['subversion-1','libsvn_subr-1']],
+                         ['.a', '.la'])
 
 
     include_path_candidate = ['/usr/include', '/usr/local/include']
