@@ -272,7 +272,9 @@ class clean(_clean):
                      'vclib/altsvn/make_svn_api_version_pxi']
     all_targets = ['config.py', 'config.pyc', 'config.pyo', '__pycache__',
                    'cython/capi/subversion_1/_svn_api_ver.pxi',
-                   'vclib/altsvn/_svn_api_ver.pxi']
+                   'vclib/altsvn/_svn_api_ver.pxi',
+                   '../../lib/cython_debug',
+                   '../../lib/vclib/altsvn']
     def run(self):
         _clean.run(self)
         def do_remove(path):
