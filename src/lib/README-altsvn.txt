@@ -29,7 +29,7 @@ Python 3.x yet, but uses bridge module to access C API, written in Cython.
   It creates config.py, cython/capi/subversion_1/_svn_api_ver.pxi and
 vclib/altsvn/_svn_api_ver.pxi to store build parameter.
 Currently, semi-automatic config supports Unix like environment only,
-and it may not work correctly. (it is not work on Python 2.6)
+and it may not work correctly.
 If it is not work well, you must edit config.py and _svn_api_ver.pxi manually.
 
 In config.py, some variables to hold include file directories and
@@ -81,6 +81,5 @@ from cython/capi/subversion_1/_svn_api_ver.pxi.
 [To do]
 * implement driver for bin/svnadmin.py
 * improve build process
-  - make "python2.6 setup.py config" to work
 * maintain install process
 * create mechanism to switch module by configration file

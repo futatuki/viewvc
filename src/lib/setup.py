@@ -150,19 +150,25 @@ with --apr-lib=<apr-library-path> option
     fp.write('include_dirs    = {0}\n'.format(repr(include_dirs)))
     fp.write('library_dirs    = {0}\n'.format(repr(library_dirs)))
     fp.close
+
     # build make_svn_api_version_pxi
-    cwd = os.getcwd()
-    try:
-        os.chdir(os.path.join(build_base, 'vclib/altsvn'))
-        subprocess.check_output(
-                ['cc',  '-I' + apr_include_dir,
-                 '-I' + svn_include_dir, '-o', 'make_svn_api_version_pxi',
-                 'make_svn_api_version_pxi.c'],
-                stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError as e:
-        log.warn("Error while building 'make_svn_api_version_pxi'."
-                 " Compiler output is:\n" + e.output)
+    proc = subprocess.Popen(
+            ['cc',  '-I' + apr_include_dir,
+             '-I' + svn_include_dir, '-o', 'make_svn_api_version_pxi',
+             'make_svn_api_version_pxi.c'],
+            cwd=os.path.join(build_base, 'vclib/altsvn'),
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
+    output = proc.stdout.read()
+    proc.stdout.close()
+    ret = proc.poll()
+    if ret is None:
+        proc.terminate()
+        ret = proc.wait()
+    if ret:
+        log.warn("C compiler exit code with {0!s}.".format(ret))
+        log.warn("its output:\n{0}".format(output))
         sys.exit(1)
+
     # generate _svn_api_ver.pxi
     pxi_file=os.path.join(build_base,
                           'cython/capi/subversion_1/_svn_api_ver.pxi')
@@ -171,17 +177,21 @@ with --apr-lib=<apr-library-path> option
     pxi_file=os.path.join(build_base, 'vclib/altsvn/_svn_api_ver.pxi')
     if os.path.lexists(pxi_file):
         os.remove(pxi_file)
-    try:
-        os.chdir(os.path.join(build_base, 'cython/capi/subversion_1'))
-        subprocess.check_output(
-                [os.path.join(build_base,
-                              'vclib/altsvn/make_svn_api_version_pxi')],
-                stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError as e:
-        log.warn("Error while executing 'make_svn_api_version_pxi'."
-                 " Compiler output is:\n" + e.output)
+    proc = subprocess.Popen(
+            [os.path.join(build_base,
+                          'vclib/altsvn/make_svn_api_version_pxi')],
+            cwd=os.path.join(build_base, 'cython/capi/subversion_1'),
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, close_fds=True)
+    output = proc.stdout.read()
+    proc.stdout.close()
+    ret = proc.poll()
+    if ret is None:
+        proc.terminate()
+        ret = proc.wait()
+    if ret:
+        log.warn("C compiler exit code with {0!s}.".format(ret))
+        log.warn("its output:\n{0}".format(output))
         sys.exit(1)
-    os.chdir(cwd)
     try:
         os.symlink('../../cython/capi/subversion_1/_svn_api_ver.pxi',
                    os.path.join(build_base, 'vclib/altsvn/_svn_api_ver.pxi'))
@@ -221,6 +231,7 @@ with appropriate options.""")
                                            sys.version_info[2]))
                                     + '\n')
         f.close()
+
 
 cython_include_dir = os.path.join(build_base, 'cython', 'capi')
 
