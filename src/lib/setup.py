@@ -13,6 +13,7 @@ from Cython.Distutils.extension import Extension
 from Cython.Distutils import build_ext
 from distutils import log
 from distutils.command.build import build as _build
+from distutils.command.install import install as _install
 from distutils.command.clean import clean as _clean
 from distutils.cmd import Command
 
@@ -259,6 +260,10 @@ class config(Command):
         create_config_files(self)
         return
 
+class install(_install):
+    # skip all except install_lib
+    sub_commands = [('install_lib', lambda self:True)]
+
 class clean(_clean):
     intermediates = ['vclib/altsvn/_py_ver.pxi',
                      'vclib/altsvn/_svn.c',
@@ -332,6 +337,7 @@ setup(name='vclib.altsvn',
     cmdclass = {'pre_build' : pre_build,
                 'build'     : build,
                 'build_ext' : build_ext,
+                'install'   : install,
                 'clean'     : clean,
                 'config'    : config}
 )
