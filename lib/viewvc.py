@@ -48,7 +48,9 @@ import sapi
 import vcauth
 import vclib
 import vclib.ccvs
-import vclib.svn
+# delay import vclib.svn because it is not determined which is to be imported
+# svn and altsvn until get options. this is a placeholder for the module
+vclib_svn = None
 
 try:
   import idiff
@@ -108,6 +110,17 @@ class Request:
 
     # check for an authenticated username
     self.username = server.getenv('REMOTE_USER')
+
+    # check which module to be imported to handle svn repository
+    global vclib_svn
+    if vclib_svn is None:
+      if getattr(cfg, 'vclib') and getattr(cfg.vclib, 'use_altsvn', None):
+        try:
+          import vclib.altsvn as vclib_svn
+        except ImportError:
+          import vclib.svn as vclib_svn
+      else:
+        import vclib.svn as vclib_svn
 
     # if we allow compressed output, see if the client does too
     self.gzip_compress_level = 0
@@ -267,8 +280,8 @@ class Request:
             # $CVSHeader$
             os.environ['CVSROOT'] = self.rootpath
           elif roottype == 'svn':
-            self.rootpath = vclib.svn.canonicalize_rootpath(rootpath)
-            self.repos = vclib.svn.SubversionRepository(self.rootname,
+            self.rootpath = vclib_svn.canonicalize_rootpath(rootpath)
+            self.repos = vclib_svn.SubversionRepository(self.rootname,
                                                         self.rootpath,
                                                         self.auth,
                                                         cfg.utilities,
@@ -4929,7 +4942,7 @@ def list_roots(request):
   for root in cfg.general.svn_roots.keys():
     auth = setup_authorizer(cfg, request.username, root)
     try:
-      repos = vclib.svn.SubversionRepository(root, cfg.general.svn_roots[root],
+      repos = vclib_svn.SubversionRepository(root, cfg.general.svn_roots[root],
                                              auth, cfg.utilities,
                                              cfg.options.svn_config_dir)
       lastmod = None
@@ -5003,7 +5016,7 @@ def expand_root_parents(cfg):
       else:
         cfg.general.cvs_roots.update(roots)
     elif repo_type == 'svn':
-      roots = vclib.svn.expand_root_parent(path)
+      roots = vclib_svn.expand_root_parent(path)
       if context:
         fullroots = {}
         for root, rootpath in roots.iteritems():
@@ -5051,7 +5064,7 @@ def find_root_in_parents(cfg, path_parts, roottype):
     if roottype == 'cvs':
       rootpath = vclib.ccvs.find_root_in_parent(path, rootname)
     elif roottype == 'svn':
-      rootpath = vclib.svn.find_root_in_parent(path, rootname)
+      rootpath = vclib_svn.find_root_in_parent(path, rootname)
 
     if rootpath is not None:
       return fullroot, rootpath, remain

@@ -92,6 +92,11 @@ import fnmatch
 #                                           |   query   |
 #                                           |           |
 #                                           `-----------'
+#                                           ,-----------.
+#                                           |           |
+#                                           |   vclib   |
+#                                           |           |
+#                                           `-----------'
 #
 # ### TODO:  Figure out what this all means for the 'kv' stuff.
 #
@@ -107,6 +112,7 @@ class Config:
     'query',
     'templates',
     'utilities',
+    'vclib',
     )
   _force_multi_value = (
     # Configuration values with multiple, comma-separated values.
@@ -469,6 +475,8 @@ class Config:
 
     self.query.viewvc_base_url = None
     
+    self.vclib.use_altsvn = 0
+
 def _startswith(somestr, substr):
   return somestr[:len(substr)] == substr
 

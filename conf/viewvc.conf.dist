@@ -1236,3 +1236,10 @@
 #viewvc_base_url =
 
 ##---------------------------------------------------------------------------
+[vclib]
+
+## determine to use alternative subversion access module in vclib
+## if it is available, or not (default: 0 (not used))
+#use_altsvn =
+
+##---------------------------------------------------------------------------
