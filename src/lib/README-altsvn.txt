@@ -7,13 +7,14 @@ Python 3.x yet, but uses bridge module to access C API, written in Cython.
 (But it is not tested almost all on Python 3.x yet.)
 
 [Build Requirement]
+* Python 2.6/2.7 or 3.x (for 3.x, build test and few function test only
+  with 3.6 and 3.7)
 * Cython 0.28 or above (not tested in 0.27 and below, and it is obviously
   needed 0.24 or above for @property syntax)
 * C compiler
-* Subversion (1.3 and above) with development library (libsvn_*.a)
-  (not tested 1.7 and below)
-* Python 2.6/2.7 or 3.x (for 3.x, build test and few function test only
-  with 3.6 and 3.7)
+* Subversion (1.3 and above) with development library
+* Apache Portable Runtime development library 1.x (may be installed
+  by dependency of Subversion's development library)
 
 
 [tested environment]
@@ -72,14 +73,17 @@ from cython/capi/subversion_1/_svn_api_ver.pxi.
 
 
 [How to use]
-(1) copy directory build/lib.(environment depended directory)/vclib/altsvn
-    and its contents into lib/vclib subdirectry of viewvc install root
-(2) replace all occurence of 'vclib.svn' into 'vclib.altsvn' in lib/viewvc.py
-(3) enjoy :)
+(1) run "python setup.py install" in current directory, before run
+    install-viewvc script.
+(2) edit your viewvc.conf to use altsvn as svn access module.
+    In "[vclib]" section, set 'use_altsvn = 1' (default is "use_altsvn = 0")
+(3) run ViewVC
 
 
 [To do]
-* implement driver for bin/svnadmin.py
-* improve build process
-* maintain install process
-* create mechanism to switch module by configration file
+* more testing.
+  - integration test on Python 2.x
+  - unit test on Python 3.x
+* implement driver for bin/svnadmin
+* improve build and install process
+  - platforms other than Unix like environment
