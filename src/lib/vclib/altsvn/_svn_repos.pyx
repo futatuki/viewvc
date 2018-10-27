@@ -980,6 +980,7 @@ cdef class _ChangedPath(object):
         self.base_path = base_path
         self.base_rev = base_rev
         self.path = path
+        self.added = added
         self.action = action
 
 cdef const char * _c_make_base_path(
@@ -1035,7 +1036,6 @@ cdef class _get_changed_paths_EditBaton(object):
         assert _c_.svn_fs_is_revision_root(root._c_ptr)
         self.base_rev = (
                 _c_.svn_fs_revision_root_revision(root._c_ptr) - 1)
-        assert self.base_rev >= 0
         # self._c_p_pool is not initialized here, because this is
         # C pointer which cannot be passed through Pure Python function
     def _getroot(self, rev):
