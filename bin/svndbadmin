@@ -58,23 +58,27 @@ else:
 
 import os
 import re
+import tempfile
 
-import svn.core
-import svn.repos
-import svn.fs
-import svn.delta
+import vclib.altsvn._svn as _svn
+import vclib.altsvn._svn_repos as _svn_repos
+from vclib import _diff_fp
 
 import cvsdb
 import viewvc
-import vclib
 
 class SvnRepo:
     """Class used to manage a connection to a SVN repository."""
     def __init__(self, path):
         self.path = path
-        self.repo = svn.repos.svn_repos_open(path)
-        self.fs = svn.repos.svn_repos_fs(self.repo)
-        self.rev_max = svn.fs.youngest_rev(self.fs)
+        self.result_pool = _svn.Apr_Pool()
+        self.scratch_pool = _svn.Apr_Pool()
+        self.repo = _repos.svn_repos_open(path,
+                                          self.result_pool,
+                                          self.scratch_pool)
+        self.fs = _repos.svn_repos_fs(self.repo)
+        self.rev_max = _repos.svn_fs_youngest_rev(self.fs, self.scratch_pool)
+        self.scratch_pool.clear()
     def __getitem__(self, rev):
         if rev is None:
             rev = self.rev_max
@@ -83,6 +87,38 @@ class SvnRepo:
         assert 0 <= rev <= self.rev_max
         rev = SvnRev(self, rev)
         return rev
+
+
+class Diff_fp(_diff_fp):
+    def __init__(self, root1, path1, root2, path2, pool=None, diffoptions=[]):
+        assert path1 or path2
+        temp1 = get_contents(root1, path1, pool)
+        temp2 = get_contents(root1, path1, pool)
+        _diff_fp.__init(self, temp1, temp2, info1=None, info2=None,
+                        diff_cmd='diff', diff_opts=diffoptions)
+
+    def get_contents(root, path, scratch_pool):
+        fd, temp = tempfile.mkstemp()
+        if root and path:
+            fp = os.fdopen(fd, "wb")
+            try:
+                stream = _svn_repos.svn_fs_file_contents(
+                                        root, path, scratch_pool)
+                try:
+                    while 1:
+                        chunk = _svn.svn_stream_read(
+                                        stream, _svn.SVN_STREAM_CHUNK_SIZE)
+                        if not chunk:
+                            break
+                        fp.write(chunk)
+                finally:
+                _svn.svn_stream_close(stream)
+            finally:
+                fp.close()
+        else:
+            os.close(fd)
+        return temp
+
 
 _re_diff_change_command = re.compile('(\d+)(?:,(\d+))?([acd])(\d+)(?:,(\d+))?')
 
@@ -134,32 +170,29 @@ class SvnRev:
     def __init__(self, repo, rev):
         self.repo = repo
         self.rev = rev
-        self.rev_roots = {} # cache of revision roots
+        self.scratch_pool = repo.scratch_pool
 
         # revision properties ...
-        revprops = svn.fs.revision_proplist(repo.fs, rev)
-        self.author = str(revprops.get(svn.core.SVN_PROP_REVISION_AUTHOR,''))
-        self.date = str(revprops.get(svn.core.SVN_PROP_REVISION_DATE, ''))
-        self.log = str(revprops.get(svn.core.SVN_PROP_REVISION_LOG, ''))
+        revprops = _svn_repos.svn_fs_revision_proplist(repo.fs, rev,
+                                                       self.scratch_pool)
+        self.author = str(revprops.get(_svn.SVN_PROP_REVISION_AUTHOR,''))
+        self.date = str(revprops.get(_svn.SVN_PROP_REVISION_DATE, ''))
+        self.log = str(revprops.get(_svn.SVN_PROP_REVISION_LOG, ''))
 
         # convert the date string to seconds since epoch ...
-        try:
-            self.date = svn.core.svn_time_from_cstring(self.date) / 1000000
-        except:
-            self.date = None
+        self.date = _svn.datestr_to_date(self.date, self.scratch_pool)
 
         # get a root for the current revisions
         fsroot = self._get_root_for_rev(rev)
-        
+
         # find changes in the revision
-        editor = svn.repos.ChangeCollector(repo.fs, fsroot)
-        e_ptr, e_baton = svn.delta.make_editor(editor)
-        svn.repos.svn_repos_replay(fsroot, e_ptr, e_baton)
+        changes = _svn_repos._get_changed_paths_helper(repos.fs, fsroot,
+                                                       self.scratch_path)
 
         self.changes = []
-        for path, change in editor.changes.items():
+        for path, change in changes.items():
             # skip non-file changes
-            if change.item_kind != svn.core.svn_node_file:
+            if change.item_kind != _svn.svn_node_file:
                 continue
 
             # deal with the change types we handle
@@ -175,7 +208,7 @@ class SvnRev:
             # because back then deleted paths always had a change.path
             # of None.
             if hasattr(change, 'action') \
-               and change.action == svn.repos.CHANGE_ACTION_DELETE:
+               and change.action == _svn_repos.svn_fs_path_change_delete
                 action = 'remove'
             elif not change.path:
                 action = 'remove'
@@ -185,21 +218,19 @@ class SvnRev:
                 action = 'change'
 
             if action == 'remove':
-                diffobj = svn.fs.FileDiff(base_root, base_path, None, None)
+                diff_fp = Diff_fp(base_root, base_path, None, None,
+                                  self.scratch_pool)
             else:
-                diffobj = svn.fs.FileDiff(base_root, base_path,
-                                          fsroot, change.path)
+                diff_fp = Diff_fp(base_root, base_path, fsroot, change.path,
+                                  self.scratch_pool)
 
-            diff_fp = diffobj.get_pipe()
             plus, minus = _get_diff_counts(diff_fp)
             self.changes.append((path, action, plus, minus))
 
     def _get_root_for_rev(self, rev):
         """Fetch a revision root from a cache of such, or a fresh root
         (which is then cached for later use."""
-        if not self.rev_roots.has_key(rev):
-            self.rev_roots[rev] = svn.fs.revision_root(self.repo.fs, rev)
-        return self.rev_roots[rev]
+        return self.repo.fs._getroot(rev)
 
 
 def handle_revision(db, command, repo, rev, verbose, force=0):
@@ -314,7 +345,7 @@ Usage: 1. %s [-v] rebuild REPOS-PATH
     the database.  If a range is specified, the revisions will be
     processed in ascending order, and you may specify "HEAD" to
     indicate "the youngest revision currently in the repository".
-    
+
 3.  Purge information specific to the repository located at REPOS-PATH
     from the database.
 
@@ -339,7 +370,7 @@ if __name__ == '__main__':
         del args[index]
     except ValueError:
         pass
-        
+
     if len(args) < 3:
         usage()
 
@@ -370,7 +401,7 @@ if __name__ == '__main__':
         rev = None
 
     try:
-        repository = vclib.svn.canonicalize_rootpath(args[2])
+        repository = _svn.canonicalize_rootpath(args[2])
         repository = cvsdb.CleanRepository(os.path.abspath(repository))
         main(command, repository, revs, verbose, force)
     except KeyboardInterrupt:

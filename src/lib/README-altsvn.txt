@@ -84,6 +84,7 @@ from cython/capi/subversion_1/_svn_api_ver.pxi.
 * more testing.
   - integration test on Python 2.x
   - unit test on Python 3.x
-* implement driver for bin/svnadmin
+  - bin/svndbadmin has been rewrited to use vclib.altsvn._svn* instead,
+    but not tested at all yet
 * improve build and install process
   - platforms other than Unix like environment
