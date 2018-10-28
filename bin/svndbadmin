@@ -66,18 +66,76 @@ from vclib import _diff_fp
 import cvsdb
 import viewvc
 
+# as vclib.altsvn._svn* modules and svn swig python binding modules are
+# exclusive we must delay import them until loading config.
+# here is a flag and placeholders
+svn_module = None
+_core    = None
+_repos   = None
+_fs      = None
+_delta   = None
+_v       = None
+_v_repos = None
+
+
+def import_svn_module(cfg):
+    global svn_module
+    global _v, _v_repos
+    global _core, _repos, _fs, _delta
+    if svn_module:
+        return
+    if getattr(cfg, 'vclib') and getattr(cfg.vclib, 'use_altsvn', None):
+        try:
+            import vclib.altsvn._svn as _v
+            import vclib.altsvn._svn_repos as _v_repos
+            svn_module = 'altsvn'
+        except ImportError:
+            import svn.core as _core
+            import svn.repos as _repos
+            import svn.fs as _fs
+            import svn.delta as _delta
+            svn_module = 'svn'
+    else:
+        import svn.core as _core
+        import svn.repos as _repos
+        import svn.fs as _fs
+        import svn.delta as _delta
+        svn_module = 'svn'
+    # expose constants
+    global SVN_PROP_REVISION_AUTHOR, SVN_PROP_REVISION_DATE, \
+           SVN_PROP_REVISION_LOG, svn_node_file, CHANGE_ACTION_DELETE
+    if svn_module == 'svn':
+        SVN_PROP_REVISION_AUTHOR = _core.SVN_PROP_REVISION_AUTHOR
+        SVN_PROP_REVISION_DATE   = _core.SVN_PROP_REVISION_DATE
+        SVN_PROP_REVISION_LOG    = _core.SVN_PROP_REVISION_LOG
+        svn_node_file            = _core.svn_node_file
+        CHANGE_ACTION_DELETE     = _repos.CHANGE_ACTION_DELETE
+    else:
+        SVN_PROP_REVISION_AUTHOR = _v.SVN_PROP_REVISION_AUTHOR
+        SVN_PROP_REVISION_DATE   = _v.SVN_PROP_REVISION_DATE
+        SVN_PROP_REVISION_LOG    = _v.SVN_PROP_REVISION_LOG
+        svn_node_file            = _v.svn_node_file
+        CHANGE_ACTION_DELETE     = _v_repos.svn_fs_path_change_delete
+
 class SvnRepo:
     """Class used to manage a connection to a SVN repository."""
     def __init__(self, path):
         self.path = path
-        self.result_pool = _svn.Apr_Pool()
-        self.scratch_pool = _svn.Apr_Pool()
-        self.repo = _repos.svn_repos_open(path,
-                                          self.result_pool,
-                                          self.scratch_pool)
-        self.fs = _repos.svn_repos_fs(self.repo)
-        self.rev_max = _repos.svn_fs_youngest_rev(self.fs, self.scratch_pool)
-        self.scratch_pool.clear()
+        if svn_module == "svn":
+            self.repo       = _repos.svn_repos_open(path)
+            self.fs         = _repos.svn_repos_fs(self.repo)
+            self.rev_max    = _fs.youngest_rev(self.fs)
+        else:
+            self.result_pool    = _v.Apr_Pool()
+            self.scratch_pool   = _v.Apr_Pool()
+            self.repo           = _v_repos.svn_repos_open(
+                                        path,
+                                        self.result_pool,
+                                        self.scratch_pool)
+            self.fs             = _v_repos.svn_repos_fs(self.repo)
+            self.rev_max        = _v_repos.svn_fs_youngest_rev(
+                                        self.fs, self.scratch_pool)
+            self.scratch_pool.clear()
     def __getitem__(self, rev):
         if rev is None:
             rev = self.rev_max
@@ -87,7 +145,7 @@ class SvnRepo:
         rev = SvnRev(self, rev)
         return rev
 
-
+# alternative of svn.fs.FileDiff class. used if svn_module is 'altsvn'
 class Diff_fp(_diff_fp):
     def __init__(self, root1, path1, root2, path2, pool=None, diffoptions=[]):
         def get_contents(root, path, scratch_pool):
@@ -95,17 +153,17 @@ class Diff_fp(_diff_fp):
             if root and path:
                 fp = os.fdopen(fd, "wb")
                 try:
-                    stream = _repos.svn_fs_file_contents(
+                    stream = _v_repos.svn_fs_file_contents(
                                             root, path, scratch_pool)
                     try:
                         while 1:
-                            chunk, len = _svn.svn_stream_read_full(
-                                            stream, _svn.SVN_STREAM_CHUNK_SIZE)
+                            chunk, len = _v.svn_stream_read_full(
+                                            stream, _v.SVN_STREAM_CHUNK_SIZE)
                             if not chunk:
                                 break
                             fp.write(chunk)
                     finally:
-                        _svn.svn_stream_close(stream)
+                        _v.svn_stream_close(stream)
                 finally:
                     fp.close()
             else:
@@ -169,29 +227,47 @@ class SvnRev:
     def __init__(self, repo, rev):
         self.repo = repo
         self.rev = rev
-        self.scratch_pool = repo.scratch_pool
+        if svn_module == "svn":
+            self.rev_roots = {} # cache of revision roots
+        else:
+            self.scratch_pool = repo.scratch_pool
 
         # revision properties ...
-        revprops = _repos.svn_fs_revision_proplist(repo.fs, rev,
-                                                       self.scratch_pool)
-        self.author = str(revprops.get(_svn.SVN_PROP_REVISION_AUTHOR,''))
-        self.date = str(revprops.get(_svn.SVN_PROP_REVISION_DATE, ''))
-        self.log = str(revprops.get(_svn.SVN_PROP_REVISION_LOG, ''))
+        if svn_module == "svn":
+            revprops = _fs.svn_fs_revision_proplist(repo.fs, rev)
+        else:
+            revprops = _v_repos.svn_fs_revision_proplist(repo.fs, rev,
+                                                         self.scratch_pool)
+        self.author = str(revprops.get(SVN_PROP_REVISION_AUTHOR,''))
+        self.date = str(revprops.get(SVN_PROP_REVISION_DATE, ''))
+        self.log = str(revprops.get(SVN_PROP_REVISION_LOG, ''))
 
         # convert the date string to seconds since epoch ...
-        self.date = _svn.datestr_to_date(self.date, self.scratch_pool)
+        if svn_module == "svn":
+            try:
+                self.date = _core.svn_time_from_cstring(self.date) // 1000000
+            except:
+                self.date = None
+        else:
+            self.date = _v.datestr_to_date(self.date, self.scratch_pool)
 
         # get a root for the current revisions
         fsroot = self._get_root_for_rev(rev)
 
         # find changes in the revision
-        changes = _repos._get_changed_paths_helper(repo.fs, fsroot,
-                                                       self.scratch_pool)
+        if svn_module == "svn":
+            editor = _repos.ChangeCollector(repo.fs, fsroot)
+            e_ptr, e_baton = _delta.make_editor(editor)
+            _repos.svn_repos_replay(fsroot, e_ptr, e_baton)
+            changes = editor.changes
+        else:
+            changes = _v_repos._get_changed_paths_helper(repo.fs, fsroot,
+                                                         self.scratch_pool)
 
         self.changes = []
         for path, change in changes.items():
             # skip non-file changes
-            if change.item_kind != _svn.svn_node_file:
+            if change.item_kind != svn_node_file:
                 continue
 
             # deal with the change types we handle
@@ -207,7 +283,7 @@ class SvnRev:
             # because back then deleted paths always had a change.path
             # of None.
             if hasattr(change, 'action') \
-               and change.action == _repos.svn_fs_path_change_delete:
+               and change.action == CHANGE_ACTION_DELETE:
                 action = 'remove'
             elif not change.path:
                 action = 'remove'
@@ -216,12 +292,20 @@ class SvnRev:
             else:
                 action = 'change'
 
-            if action == 'remove':
-                diff_fp = Diff_fp(base_root, base_path, None, None,
-                                  self.scratch_pool)
+            if svn_module == "svn":
+                if action == 'remove':
+                    diffobj = _fs.FileDiff(base_root, base_path, None, None)
+                else:
+                    diffobj = _fs.FileDiff(base_root, base_path,
+                                           fsroot, change.path)
+                diff_fp = diffobj.get_pipe()
             else:
-                diff_fp = Diff_fp(base_root, base_path, fsroot, change.path,
-                                  self.scratch_pool)
+                if action == 'remove':
+                    diff_fp = Diff_fp(base_root, base_path, None, None,
+                                      self.scratch_pool)
+                else:
+                    diff_fp = Diff_fp(base_root, base_path,
+                                      fsroot, change.path, self.scratch_pool)
 
             plus, minus = _get_diff_counts(diff_fp)
             self.changes.append((path, action, plus, minus))
@@ -229,7 +313,12 @@ class SvnRev:
     def _get_root_for_rev(self, rev):
         """Fetch a revision root from a cache of such, or a fresh root
         (which is then cached for later use."""
-        return self.repo.fs._getroot(rev)
+        if svn_module == "svn":
+            if not self.rev_roots.has_key(rev):
+                self.rev_roots[rev] = _fs.revision_root(self.repo.fs, rev)
+            return self.rev_roots[rev]
+        else:
+            return self.repo.fs._getroot(rev)
 
 
 def handle_revision(db, command, repo, rev, verbose, force=0):
@@ -281,7 +370,16 @@ def handle_revision(db, command, repo, rev, verbose, force=0):
 
 def main(command, repository, revs=[], verbose=0, force=0):
     cfg = viewvc.load_config(CONF_PATHNAME)
+    import_svn_module(cfg)
     db = cvsdb.ConnectDatabase(cfg)
+
+    # sanitise repository path
+    if svn_module == 'svn':
+        from vclib.svn import canonicalize_rootpath
+        repository = canonicalize_rootpath(repository)
+    else:
+        repository = _v.canonicalize_rootpath(repository)
+    repository = cvsdb.CleanRepository(os.path.abspath(repository))
 
     # Purge what must be purged.
     if command in ('rebuild', 'purge'):
@@ -400,9 +498,9 @@ if __name__ == '__main__':
         rev = None
 
     try:
-        repository = _svn.canonicalize_rootpath(args[2])
-        repository = cvsdb.CleanRepository(os.path.abspath(repository))
-        main(command, repository, revs, verbose, force)
+        # we don't clean args[2] as repository path here, because
+        # subversion access modules are not imported yet.
+        main(command, args[2], revs, verbose, force)
     except KeyboardInterrupt:
         print
         print '** break **'
