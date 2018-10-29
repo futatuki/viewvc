@@ -2228,10 +2228,17 @@ ELIF SVN_API_VER >= (1, 5):
         cdef object serr
         cdef Svn_error svnerr
         cdef CbBlameContainer btn
+        cdef object author
         cdef _c_.apr_time_t _c_date
         cdef object date
 
         btn = <CbBlameContainer>_c_baton
+        if _c_author is NULL:
+            author = ''
+        else:
+            author = <bytes>_c_author
+            IF PY_VERSION >= (3, 0, 0):
+                author = _norm(author)
         # extract date
         if _c_date_string is not NULL and _c_date_string[0] != 0:
             _c_err = _c_.svn_time_from_cstring(
@@ -2242,7 +2249,7 @@ ELIF SVN_API_VER >= (1, 5):
             date = None
         _c_err = NULL
         try:
-            btn.fnobj(btn, _c_line_no, _c_revision, <bytes>_c_author, date,
+            btn.fnobj(btn, _c_line_no, _c_revision, author, date,
                         <bytes>_c_line)
         except SVNerr as serr:
             svnerr = serr.svnerr
@@ -2270,10 +2277,17 @@ ELSE:
         cdef object serr
         cdef Svn_error svnerr
         cdef CbBlameContainer btn
+        cdef object author
         cdef _c_.apr_time_t _c_date
         cdef object date
 
         btn = <CbBlameContainer>_c_baton
+        if _c_author is NULL:
+            author = ''
+        else:
+            author = <bytes>_c_author
+            IF PY_VERSION >= (3, 0, 0):
+                author = _norm(author)
         # extract date
         if _c_date_string is not NULL and _c_date_string[0] != 0:
             _c_err = _c_.svn_time_from_cstring(
@@ -2284,7 +2298,7 @@ ELSE:
             date = None
         _c_err = NULL
         try:
-            btn.fnobj(btn, _c_line_no, _c_revision, <bytes>_c_author, date,
+            btn.fnobj(btn, _c_line_no, _c_revision, author, date,
                         <bytes>_c_line)
         except SVNerr as serr:
             svnerr = serr.svnerr
