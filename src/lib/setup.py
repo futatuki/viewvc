@@ -18,7 +18,7 @@ from distutils.command.clean import clean as _clean
 from distutils.cmd import Command
 
 build_base = os.path.abspath(os.path.dirname(sys.argv[0]))
-config_py = os.path.join(build_base, 'config.py')
+cfg_py = os.path.join(build_base, 'cfg.py')
 
 # Get access to our library modules.
 sys.path.insert(0, os.path.abspath(
@@ -28,8 +28,8 @@ sys.path.insert(0, os.path.abspath(
 sys.path.insert(0, build_base)
 
 try:
-    from config import apr_include_dir, svn_include_dir, apr_lib_dir,\
-                       svn_lib_dir, include_dirs, library_dirs
+    from cfg import apr_include_dir, svn_include_dir, apr_lib_dir,\
+                    svn_lib_dir, include_dirs, library_dirs
     config_done = True
 except:
     apr_include_dir = None
@@ -143,7 +143,7 @@ with --apr-lib=<apr-library-path> option
     else:
         library_dirs = [apr_lib_dir, svn_lib_dir]
 
-    fp = open(config_py, "wt")
+    fp = open(cfg_py, "wt")
     fp.write('apr_include_dir = "{0}"\n'.format(apr_include_dir))
     fp.write('svn_include_dir = "{0}"\n'.format(svn_include_dir))
     fp.write('apr_lib_dir     = "{0}"\n'.format(apr_lib_dir))
@@ -270,7 +270,7 @@ class clean(_clean):
                      'vclib/altsvn/_svn_repos.c',
                      'vclib/altsvn/_svn_ra.c',
                      'vclib/altsvn/make_svn_api_version_pxi']
-    all_targets = ['config.py', 'config.pyc', 'config.pyo', '__pycache__',
+    all_targets = ['cfg.py', 'cfg.pyc', 'cfg.pyo', '__pycache__',
                    'cython/capi/subversion_1/_svn_api_ver.pxi',
                    'vclib/altsvn/_svn_api_ver.pxi',
                    '../../lib/cython_debug',
