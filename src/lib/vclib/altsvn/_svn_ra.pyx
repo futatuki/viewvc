@@ -4,8 +4,6 @@ cimport _svn_ra_capi as _c_
 cimport _svn
 cimport _svn_repos
 from . import _svn
-IF PY_VERSION >= (3, 0, 0):
-    from . import _norm
 
 def _ra_init():
     cdef _c_.svn_error_t * serr
@@ -203,7 +201,7 @@ cdef inline object _svn_dirent_to_object(const _c_.svn_dirent_t * _c_dirent):
     has_props = True if _c_dirent[0].has_props != _c_.FALSE else False
     last_author = <bytes>(_c_dirent[0].last_author)
     IF PY_VERSION >= (3, 0, 0):
-        last_author = _norm(last_author)
+        last_author = _svn._norm(last_author)
     return _Dirent(_c_dirent[0].kind, _c_dirent[0].size, has_props,
                    _c_dirent[0].created_rev, _c_dirent[0].time, last_author)
 
@@ -869,13 +867,13 @@ cdef class py_svn_log_entry(object):
             IF PY_VERSION >= (3, 0, 0):
                 self.revprops = {
                         _svn.SVN_PROP_REVISION_LOG :
-                                (_norm(<bytes>_c_message)
+                                (_svn._norm(<bytes>_c_message)
                                         if _c_message is not NULL else ''),
                         _svn.SVN_PROP_REVISION_AUTHOR :
-                                (_norm(<bytes>_c_author)
+                                (_svn._norm(<bytes>_c_author)
                                         if _c_author is not NULL else ''),
                         _svn.SVN_PROP_REVISION_DATE :
-                                (_norm(<bytes>_c_date)
+                                (_svn._norm(<bytes>_c_date)
                                         if _c_date is not NULL else '')}
             ELSE:
                 self.revprops = {

@@ -14,17 +14,33 @@ import os
 import os.path
 import io
 import errno
-IF SVN_API_VER < (1, 7):
-    import urllib
 
 IF PY_VERSION >= (3, 0, 0):
-    from . import _norm
+    import sys
+    import codecs
+
+IF SVN_API_VER < (1, 7):
+    import urllib
 
 try:
     PathLike = os.PathLike
 except AttributeError:
     class PathLike(object):
         pass
+
+IF PY_VERSION >= (3, 0, 0):
+    # for compatibility between Python 2 and Python 3
+    _default_encoding = sys.getdefaultencoding()
+
+    def setdefaultencoding(enc):
+        codecs.lookup(enc)
+        _default_encoding = enc
+        return
+
+    def _norm(s, encoding=_default_encoding, errors='surrogateescape'):
+        return (s.decode(encoding, errors)
+                    if not isinstance(s, str) and isinstance(s, bytes) else s)
+
 
 class General(Exception): pass
 class InitError(General): pass
@@ -571,6 +587,9 @@ def datestr_to_date(datestr, scratch_pool=None):
     cdef _c_.svn_error_t * serr
     cdef Svn_error pyerr
     cdef _c_.apr_time_t _c_when
+    IF PY_VERSION >= (3, 0, 0):
+        cdef bytes b_datestr
+    cdef _c_datestr
 
     if scratch_pool is not None:
         assert (<Apr_Pool?>scratch_pool)._c_pool is not NULL
@@ -581,15 +600,22 @@ def datestr_to_date(datestr, scratch_pool=None):
         ast = _c_.apr_pool_create(&_c_tmp_pool, _scratch_pool._c_pool)
     if ast:
         raise PoolError()
+
+    IF PY_VERSION >= (3, 0, 0):
+        if isinstance(datestr, str):
+            b_datestr = datestr.encode('utf-8', 'surrogateescape')
+        _c_datestr = <const char *>b_datestr
+    ELSE:
+        _c_datestr = <const char *>datestr
     try:
         serr = _c_.svn_time_from_cstring(
-                        &_c_when, datestr, _c_tmp_pool)
+                        &_c_when, _c_datestr, _c_tmp_pool)
         if serr is not NULL:
             _c_.svn_error_clear(serr)
             when = None
         else:
             when = _c_when
-            when = when / 1000000
+            when = when // 1000000
     finally:
         _c_.apr_pool_destroy(_c_tmp_pool)
     return when

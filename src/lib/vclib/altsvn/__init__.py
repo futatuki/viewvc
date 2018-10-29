@@ -14,24 +14,9 @@
 
 import os.path
 import re
-import sys
 import vclib
 from ._svn import canonicalize_path as _canonicalize_path
 from ._svn import canonicalize_rootpath as canonicalize_rootpath
-
-# for compatibility between Python 2 and Python 3
-_default_encoding = sys.getdefaultencoding()
-
-def setdefaultencoding(enc):
-    codecs.lookup(enc)
-    _default_encoding = enc
-    return
-
-
-def _norm(s, encoding=_default_encoding, errors='surrogateescape'):
-    return (s.decode(encoding, errors)
-                if not isinstance(s, str) and isinstance(s, bytes) else s)
-
 
 def _path_parts(path):
   return filter(None, path.split(b'/'))
@@ -90,7 +75,7 @@ def _split_revprops(revprops, scratch_pool=None):
   for prop in _svn.SVN_PROP_REVISION_LOG, \
               _svn.SVN_PROP_REVISION_AUTHOR, \
               _svn.SVN_PROP_REVISION_DATE:
-    if revprops.has_key(prop):
+    if prop in revprops:
       special_props.append(revprops[prop])
       del(revprops[prop])
     else:
@@ -100,7 +85,7 @@ def _split_revprops(revprops, scratch_pool=None):
   return msg, author, date, revprops
 
 
-_re_url = re.compile('^(http|https|file|svn|svn\+[^:]+)://')
+_re_url = re.compile(b'^(http|https|file|svn|svn\+[^:]+)://')
 
 def expand_root_parent(parent_path):
   roots = {}
@@ -158,10 +143,10 @@ class SVNChangedPath(vclib.ChangedPath):
 def SubversionRepository(name, rootpath, authorizer, utilities, config_dir):
   rootpath = canonicalize_rootpath(rootpath)
   if re.search(_re_url, rootpath):
-    import svn_ra
+    from . import svn_ra
     return svn_ra.RemoteSubversionRepository(name, rootpath, authorizer,
                                              utilities, config_dir)
   else:
-    import svn_repos
+    from . import svn_repos
     return svn_repos.LocalSubversionRepository(name, rootpath, authorizer,
                                                utilities, config_dir)

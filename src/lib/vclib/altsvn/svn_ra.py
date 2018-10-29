@@ -19,7 +19,7 @@ import io
 import re
 import tempfile
 import urllib
-from . import _svn, _svn_ra, _norm, _path_parts, _cleanup_path,\
+from . import _svn, _svn_ra, _path_parts, _cleanup_path,\
               _compare_paths, _split_revprops, Revision, SVNChangedPath
 #from svn import client
 
@@ -27,7 +27,7 @@ from . import _svn, _svn_ra, _norm, _path_parts, _cleanup_path,\
 ### Require Subversion 1.3.1 or better. (for svn_ra_get_locations support)
 # foolproof. because _svn cannot build with API version below 1.4
 if (_svn.SVN_VER_MAJOR, _svn.SVN_VER_MINOR, _svn.SVN_VER_PATCH) < (1, 3, 1):
-  raise Exception, "Version requirement not met (needs 1.3.1 or better)"
+  raise vclib.Error("Version requirement not met (needs 1.3.1 or better)")
 
 
 class LogCollector:
@@ -200,7 +200,7 @@ class RemoteSubversionRepository(vclib.Repository):
   def openfile(self, path_parts, rev, options):
     path = self._getpath(path_parts)
     if self.itemtype(path_parts, rev) != vclib.FILE:  # does auth-check
-      raise vclib.Error("Path '%s' is not a file." % _norm(path))
+      raise vclib.Error("Path '%s' is not a file." % _svn._norm(path))
     rev = self._getrev(rev)
     url = self._geturl(path)
     ### rev here should be the last history revision of the URL
@@ -211,7 +211,7 @@ class RemoteSubversionRepository(vclib.Repository):
   def listdir(self, path_parts, rev, options):
     path = self._getpath(path_parts)
     if self.itemtype(path_parts, rev) != vclib.DIR:  # does auth-check
-      raise vclib.Error("Path '%s' is not a directory." % _norm(path))
+      raise vclib.Error("Path '%s' is not a directory." % _svn._norm(path))
     rev = self._getrev(rev)
     entries = []
     dirents, locks = self._get_dirents(path, rev)
@@ -229,7 +229,7 @@ class RemoteSubversionRepository(vclib.Repository):
   def dirlogs(self, path_parts, rev, entries, options):
     path = self._getpath(path_parts)
     if self.itemtype(path_parts, rev) != vclib.DIR:  # does auth-check
-      raise vclib.Error("Path '%s' is not a directory." % _norm(path))
+      raise vclib.Error("Path '%s' is not a directory." % _svn._norm(path))
     rev = self._getrev(rev)
     dirents, locks = self._get_dirents(path, rev)
     for entry in entries:
@@ -244,7 +244,7 @@ class RemoteSubversionRepository(vclib.Repository):
       entry.rev = str(dirent.created_rev)
       entry.size = dirent.size
       entry.lockinfo = None
-      if locks.has_key(entry.name):
+      if entry.name in locks:
         entry.lockinfo = locks[entry.name].owner
 
   def itemlog(self, path_parts, rev, sortby, first, limit, options):
@@ -262,9 +262,9 @@ class RemoteSubversionRepository(vclib.Repository):
       list_url = self._geturl(self._getpath(path_parts[:-1]))
       dirents, locks = _svn_ra.list_directory(
                             list_url, rev, rev, 0, self.ctx, self.scratch_pool)
-      if locks.has_key(basename):
+      if basename in locks:
         lockinfo = locks[basename].owner
-      if dirents.has_key(basename):
+      if basename in dirents:
         size_in_rev = dirents[basename].size
 
     # Special handling for the 'svn_latest_log' scenario.
@@ -394,7 +394,7 @@ class RemoteSubversionRepository(vclib.Repository):
 
   def isexecutable(self, path_parts, rev):
     props = self.itemprops(path_parts, rev) # does authz-check
-    return props.has_key(_svn.SVN_PROP_EXECUTABLE)
+    return _svn.SVN_PROP_EXECUTABLE in props
 
   def filesize(self, path_parts, rev):
     path = self._getpath(path_parts)
@@ -616,7 +616,7 @@ class RemoteSubversionRepository(vclib.Repository):
     try:
       results = _svn_ra.svn_ra_get_locations(
                       self.ra_session, path, rev, [old_rev], self.scratch_pool)
-    except _svn.SVNerr, e:
+    except _svn.SVNerr as e:
       if e.get_code() == _svn.SVN_ERR_FS_NOT_FOUND:
         raise vclib.ItemNotFound(path)
       raise
@@ -683,7 +683,7 @@ class RemoteSubversionRepository(vclib.Repository):
     if path_type != vclib.FILE:
       return None
     props = _svn_ra.simple_proplist(url, rev, self.ctx, self.scratch_pool)
-    if not props.has_key(_svn.SVN_PROP_SPECIAL):
+    if _svn.SVN_PROP_SPECIAL not in props:
       return None
     pathspec = ''
     ### FIXME: We're being a touch sloppy here, first by grabbing the
