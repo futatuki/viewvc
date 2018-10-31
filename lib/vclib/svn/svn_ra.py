@@ -203,7 +203,12 @@ class SelfCleanFP:
     
   def close(self):
     self._fp.close()
-    os.remove(self._path)
+    if self._path:
+      try:
+        os.remove(self._path)
+        self._path = None
+      except OSError:
+        pass
 
   def __del__(self):
     self.close()
