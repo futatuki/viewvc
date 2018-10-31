@@ -14,7 +14,7 @@
 such as CVS.
 """
 
-import types
+import io
 
 
 # item types returned by Repository.itemtype().
@@ -325,7 +325,7 @@ class ItemNotFound(Error):
   def __init__(self, path):
     # use '/' rather than os.sep because this is for user consumption, and
     # it was defined using URL separators
-    if type(path) in (types.TupleType, types.ListType):
+    if isinstance(path, tuple) or isinstance(path, list):
       path = '/'.join(path)
     Error.__init__(self, path)
 
@@ -343,6 +343,7 @@ class NonTextualFileContents(Error):
 # Implementation code used by multiple vclib modules
 
 import subprocess
+import sys
 import os
 import time
 
@@ -391,18 +392,25 @@ class _diff_fp:
     if info1 and info2:
       args.extend(["-L", self._label(info1), "-L", self._label(info2)])
     args.extend([temp1, temp2])
-    self.proc = subprocess.Popen(args, stdout=subprocess.PIPE, close_fds=True)
+    self.proc = subprocess.Popen(args, stdout=subprocess.PIPE, bufsize=-1,
+                                 close_fds=(sys.platform != "win32"))
+    if (    not isinstance(self.proc.stdout, io.TextIOBase)
+        and isinstance(self.proc.stdout, io.BufferedIOBase)):
+        self.fp = io.TextIOWrapper(self.proc.stdout,
+                                   encoding='utf-8', errors='surrogateescape')
+    else:
+        self.fp = self.proc.stdout
 
   def read(self, bytes):
-    return self.proc.stdout.read(bytes)
+    return self.fp.read(bytes)
 
   def readline(self):
-    return self.proc.stdout.readline()
+    return self.fp.readline()
 
   def close(self):
     try:
       if self.proc:
-        self.proc.stdout.close()
+        self.fp.close()
         ret = self.proc.poll()
         if ret is None:
           # child process seems to be still running...
