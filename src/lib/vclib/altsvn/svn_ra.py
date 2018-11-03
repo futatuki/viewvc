@@ -648,7 +648,7 @@ class RemoteSubversionRepository(vclib.Repository):
     exists.  Return that revision, and the path at which PATH exists in
     that revision."""
 
-    if not isinstance(path, bytes): 
+    if not isinstance(path, bytes):
         path = path.encode('utf-8', 'surrogateescape')
 
     # Here's the plan, man.  In the trivial case (where PEG_REVISION is
