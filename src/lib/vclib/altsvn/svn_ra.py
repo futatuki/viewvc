@@ -406,7 +406,10 @@ class RemoteSubversionRepository(vclib.Repository):
     return dirent.size
 
   def _getpath(self, path_parts):
-    return b'/'.join(path_parts)
+    if path_parts and not isinstance(path_parts[0], bytes):
+      return '/'.join(path_parts).encode('utf-8')
+    else:
+      return b'/'.join(path_parts)
 
   def _getrev(self, rev):
     if rev is None or rev == 'HEAD':
@@ -613,6 +616,8 @@ class RemoteSubversionRepository(vclib.Repository):
     return self.youngest
 
   def get_location(self, path, rev, old_rev):
+    if not isinstance(path, bytes):
+      path = path.encode('utf-8', 'surrogateescape')
     try:
       results = _svn_ra.svn_ra_get_locations(
                       self.ra_session, path, rev, [old_rev], self.scratch_pool)
@@ -632,6 +637,8 @@ class RemoteSubversionRepository(vclib.Repository):
     return old_path
 
   def created_rev(self, path, rev):
+    if not isinstance(path, bytes):
+      path = path.encode('utf-8', 'surrogateescape')
     lh_rev, c_rev = self._get_last_history_rev(_path_parts(path), rev)
     return lh_rev
 
@@ -640,6 +647,9 @@ class RemoteSubversionRepository(vclib.Repository):
     revision older than, or equal to, LIMIT_REVISION in which path
     exists.  Return that revision, and the path at which PATH exists in
     that revision."""
+
+    if not isinstance(path, bytes): 
+        path = path.encode('utf-8', 'surrogateescape')
 
     # Here's the plan, man.  In the trivial case (where PEG_REVISION is
     # the same as LIMIT_REVISION), this is a no-brainer.  If
