@@ -38,8 +38,11 @@ import tempfile
 import time
 import functools
 if sys.version_info[0] >= 3:
+  PY3 = True
+  import io
   from urllib.parse import urlencode as _urlencode, quote as _quote
 else:
+  PY3 = False
   from urllib import urlencode as _urlencode, quote as _quote
 import subprocess
 
@@ -95,7 +98,7 @@ _URL_SAFE_CHARS = "/*~"
 
 
 # Python 3: workaround for cmp()
-if sys.version_info[0] >= 3:
+if PY3:
   def cmp(a, b):
     return (a > b) - (a < b)
 
@@ -167,7 +170,7 @@ class Request:
     for name, values in self.server.params().items():
       # we only care about the first value
       value = values[0]
-      
+
       # patch up old queries that use 'cvsroot' to look like they used 'root'
       if name == 'cvsroot':
         name = 'root'
@@ -185,12 +188,12 @@ class Request:
 
       # validate the parameter
       _validate_param(name, value)
-      
+
       # if we're here, then the parameter is okay
       self.query_dict[name] = value
 
     # Resolve the view parameter into a handler function.
-    self.view_func = _views.get(self.query_dict.get('view', None), 
+    self.view_func = _views.get(self.query_dict.get('view', None),
                                 self.view_func)
 
     # Process PATH_INFO component of query string
@@ -268,7 +271,7 @@ class Request:
       if roottype:
         # Overlay root-specific options.
         cfg.overlay_root_options(self.rootname)
-        
+
         # Setup an Authorizer for this rootname and username
         debug.t_start('setup-authorizer')
         self.auth = setup_authorizer(cfg, self.username)
@@ -319,7 +322,7 @@ class Request:
           'The root "%s" has an unknown type ("%s").  Expected "cvs" or "svn".'
           % (self.rootname, type),
           "500 Internal Server Error")
-      
+
     # If this is using an old-style 'rev' parameter, redirect to new hotness.
     # Subversion URLs will now use 'pathrev'; CVS ones use 'revision'.
     if self.repos and 'rev' in self.query_dict:
@@ -385,7 +388,7 @@ class Request:
           needs_redirect = 1
 
     if self.view_func is None:
-      # view parameter is not set, try looking at pathtype and the 
+      # view parameter is not set, try looking at pathtype and the
       # other parameters
       if not self.rootname:
         self.view_func = view_roots
@@ -405,7 +408,7 @@ class Request:
         elif 'graph' in self.query_dict:
           if 'makeimage' not in self.query_dict:
             self.view_func = view_cvsgraph
-          else: 
+          else:
             self.view_func = view_cvsgraph_image
         elif 'revision' in self.query_dict \
                  or cfg.options.default_file_view != "log":
@@ -425,7 +428,7 @@ class Request:
       self.where = ''
       self.path_parts = []
       self.pathtype = None
-      
+
     # if we have a directory and the request didn't end in "/", then redirect
     # so that it does.
     if (self.pathtype == vclib.DIR and path_info[-1:] != '/'
@@ -485,7 +488,7 @@ class Request:
 
   def get_link(self, view_func=None, where=None, pathtype=None, params=None):
     """Constructs a link pointing to another ViewVC page. All arguments
-    correspond to members of the Request object. If they are set to 
+    correspond to members of the Request object. If they are set to
     None they take values from the current page. Return value is a base
     URL and a dictionary of parameters"""
 
@@ -498,7 +501,7 @@ class Request:
       params = self.query_dict.copy()
     else:
       params = params.copy()
-      
+
     # must specify both where and pathtype or neither
     assert (where is None) == (pathtype is None)
 
@@ -512,7 +515,7 @@ class Request:
       pathtype = self.pathtype
 
     # no need to add sticky variables for views with no links
-    sticky_vars = not (view_func is view_checkout 
+    sticky_vars = not (view_func is view_checkout
                        or view_func is download_tarball)
 
     # The logic used to construct the URL is an inverse of the
@@ -549,7 +552,7 @@ class Request:
 
         # no need to specify default root
         if rootname == cfg.general.default_root:
-          del params['root']   
+          del params['root']
 
     # add 'pathrev' value to parameter list
     if (self.pathrev is not None
@@ -617,7 +620,7 @@ class Request:
           params[name] = value
 
     # remove null values from parameter list
-    for name, value in params.items():
+    for name, value in list(params.items()):
       if value is None:
         del params[name]
 
@@ -627,6 +630,8 @@ def _path_parts(path):
   """Split up a repository path into a list of path components"""
   # clean it up. this removes duplicate '/' characters and any that may
   # exist at the front or end of the path.
+  if PY3 and isinstance(path, bytes):
+    path = path.decode('utf-8', 'surrogateescape')
   return [pp for pp in path.split('/') if pp]
 
 def _normalize_path(path):
@@ -637,7 +642,7 @@ def _normalize_path(path):
   because we output the script name in links and web browsers
   interpret //viewvc.cgi/ as http://viewvc.cgi/
   """
-  
+
   i = 0
   for c in path:
     if c != '/':
@@ -718,7 +723,7 @@ _legal_params = {
   'search'        : _validate_regex,
   'p1'            : None,
   'p2'            : None,
-  
+
   'hideattic'     : _re_validate_boolint,
   'limit_changes' : _re_validate_number,
   'sortby'        : _re_validate_alpha,
@@ -776,7 +781,10 @@ _legal_params = {
   }
 
 def _path_join(path_parts):
-  return '/'.join(path_parts)
+  if PY3 and path_parts and isinstance(path_parts[0], bytes):
+    return b'/'.join(path_parts).decode('utf-8', 'surrogateescape')
+  else:
+    return '/'.join(path_parts)
 
 def _path_starts_with(path_parts, first_path_parts):
   if not path_parts:
@@ -805,8 +813,12 @@ def _strip_suffix(suffix, path_parts, rev, pathtype, repos, view_func):
 def _repos_pathtype(repos, path_parts, rev):
   """Return the type of a repository path, or None if the path doesn't
   exist"""
+  if not PY3 or not path_parts or isinstance(path_parts[0], bytes):
+    b_path_parts = path_parts
+  else:
+    b_path_parts = [p.encode('utf-8') for p in path_parts]
   try:
-    return repos.itemtype(path_parts, rev)
+    return repos.itemtype(b_path_parts, rev)
   except vclib.ItemNotFound:
     return None
 
@@ -832,7 +844,7 @@ def _orig_path(request, rev_param='revision', path_param=None):
   #     *checkout*/circle.jpg?pathrev=3
   #     *checkout*/square.jpg?revision=3
   #     *checkout*/square.jpg?revision=3&pathrev=4
-  # 
+  #
   # Note that the following:
   #
   #     *checkout*/circle.jpg?rev=3
@@ -844,7 +856,7 @@ def _orig_path(request, rev_param='revision', path_param=None):
   #
   rev = request.query_dict.get(rev_param, request.pathrev)
   path = request.query_dict.get(path_param, request.where)
-  
+
   if rev is not None and hasattr(request.repos, '_getrev'):
     try:
       pathrev = request.repos._getrev(request.pathrev)
@@ -858,7 +870,7 @@ def setup_authorizer(cfg, username, rootname=None):
   """Setup the authorizer.  If ROOTNAME is provided, assume that
   per-root options have not been overlayed.  Otherwise, assume they
   have (and fetch the authorizer for the configured root)."""
-  
+
   if rootname is None:
     authorizer = cfg.options.authorizer
     params = cfg.get_authorizer_params()
@@ -898,7 +910,7 @@ def check_freshness(request, mtime=None, etag=None, weak=0):
   # See if we are supposed to disable etags (for debugging, usually)
   if not cfg.options.generate_etags:
     return 0
-  
+
   request_etag = request_mtime = None
   if etag is not None:
     if weak:
@@ -983,7 +995,7 @@ def get_writeready_server_file(request, content_type=None, encoding=None,
     request.server.addheader('Content-Encoding', 'gzip')
   elif content_length is not None:
     request.server.addheader('Content-Length', content_length)
-  
+
   if content_type and encoding:
     request.server.header("%s; charset=%s" % (content_type, encoding))
   elif content_type:
@@ -996,11 +1008,13 @@ def get_writeready_server_file(request, content_type=None, encoding=None,
                        request.server.file())
   else:
     fp = request.server.file()
-  
+
   return fp
-  
+
 def generate_page(request, view_name, data, content_type=None):
   server_fp = get_writeready_server_file(request, content_type)
+  if PY3 and not hasattr(server_fp, 'encoding'):
+    server_fp = io.TextIOWrapper(server_fp, 'utf-8', 'surrogateescape')
   template = get_view_template(request.cfg, view_name, request.language)
   template.generate(server_fp, data)
 
@@ -1086,7 +1100,7 @@ def default_view(mime_type, cfg):
   # very useful marked up. If the mime type is totally unknown (happens when
   # we encounter an unrecognized file extension) we also view it through
   # the markup page since that's better than sending it text/plain.
-  if ('markup' in cfg.options.allowed_views and 
+  if ('markup' in cfg.options.allowed_views and
       (is_viewable_image(mime_type) or is_text(mime_type))):
     return view_markup
   return view_checkout
@@ -1099,7 +1113,7 @@ def is_binary_file_mime_type(mime_type, cfg):
       if fnmatch.fnmatch(mime_type, pattern):
         return True
   return False
-  
+
 def get_file_view_info(request, where, rev=None, mime_type=None, pathrev=-1):
   """Return an object holding common hrefs and a viewability flag used
   for various views of FILENAME at revision REV whose MIME type is
@@ -1112,9 +1126,9 @@ def get_file_view_info(request, where, rev=None, mime_type=None, pathrev=-1):
      annotate_href
      revision_href
      prefer_markup
-     
+
   """
-  
+
   rev = rev and str(rev) or None
   mime_type = mime_type or guess_mime(where)
   if pathrev == -1: # cheesy default value, since we need to preserve None
@@ -1209,7 +1223,7 @@ class ViewVCHtmlFormatterTokens:
           return out, out_len, 1
     return out, out_len, 0
 
-    
+
 class ViewVCHtmlFormatter:
   """Format a string as HTML-encoded output with customizable markup
   rules, for example turning strings that look like URLs into anchor links.
@@ -1218,7 +1232,7 @@ class ViewVCHtmlFormatter:
   interface, there is a good chance that there are consumers outside
   of ViewVC itself that make use of these things.
   """
-  
+
   def __init__(self):
     self._formatters = []
 
@@ -1254,7 +1268,7 @@ class ViewVCHtmlFormatter:
            entity-encoded email address, with no more than MAXLEN characters
            in the non-HTML-tag bits.  If MAXLEN is 0, there is no maximum.
          - the number of non-HTML-tag characters returned.
-    """    
+    """
     s = mobj.group(0)
     trunc_s = maxlen and s[:maxlen] or s
     return self._entity_encode(trunc_s), len(trunc_s)
@@ -1324,10 +1338,10 @@ class ViewVCHtmlFormatter:
          - the text S, HTML-escaped, containing no more than MAXLEN
            characters.  If MAXLEN is 0, there is no maximum.
          - the number of characters returned.
-    """   
+    """
     trunc_s = maxlen and s[:maxlen] or s
     return sapi.escape(trunc_s), len(trunc_s)
-  
+
   def add_formatter(self, regexp, conv, userdata=None):
     """Register a formatter which finds instances of strings matching
     REGEXP, and using the function CONV and USERDATA to format them.
@@ -1417,11 +1431,11 @@ class LogFormatter:
 
   def get(self, maxlen=0, htmlize=1):
     cfg = self.request.cfg
-    
+
     # Prefer the cache.
     if (maxlen, htmlize) in self.cache:
       return self.cache[(maxlen, htmlize)]
-    
+
     # If we are HTML-izing...
     if htmlize:
       # ...and we don't yet have ViewVCHtmlFormatter() object tokens...
@@ -1451,7 +1465,7 @@ class LogFormatter:
 
         # Add custom rewrite handling per configuration.
         for rule in cfg.options.custom_log_formatting:
-          rule = rule.replace('\\:', '\x01')          
+          rule = rule.replace('\\:', '\x01')
           regexp, format = [x.strip() for x in  rule.split(':', 1)]
           regexp = regexp.replace('\x01', ':')
           format = format.replace('\x01', ':')
@@ -1513,7 +1527,7 @@ def little_time(request):
     return 'very little time'
 
 def html_time(request, secs, extended=0):
-  if sys.version_info[0] >= 3:
+  if PY3:
     secs = int(time.time()) - secs
   else:
     secs = long(time.time()) - secs
@@ -1540,7 +1554,7 @@ def html_time(request, secs, extended=0):
 def common_template_data(request, revision=None, mime_type=None):
   """Return a TemplateData instance with data dictionary items
   common to most ViewVC views."""
-  
+
   cfg = request.cfg
 
   # Initialize data dictionary members (sorted alphanumerically)
@@ -1629,7 +1643,7 @@ def common_template_data(request, revision=None, mime_type=None):
     data['view_href'] = request.get_url(view_func=view_directory,
                                        params={}, escape=1)
     if 'tar' in cfg.options.allowed_views:
-      data['tarball_href'] = request.get_url(view_func=download_tarball, 
+      data['tarball_href'] = request.get_url(view_func=download_tarball,
                                              params={},
                                              escape=1)
     if request.roottype == 'svn':
@@ -1675,7 +1689,7 @@ def retry_read(src, reqlen=CHUNK_SIZE):
         time.sleep(1)
         continue
     return chunk
-  
+
 def copy_stream(src, dst, htmlize=0):
   while 1:
     chunk = retry_read(src)
@@ -1724,7 +1738,7 @@ def detect_encoding(text_block):
   Python module.  (Currently, this is used only when syntax
   highlighting is not enabled/available; otherwise, Pygments does this
   work for us.)"""
-  
+
   # Does the TEXT_BLOCK start with a BOM?
   for bom, encoding in [('\xef\xbb\xbf', 'utf-8'),
                         ('\xff\xfe', 'utf-16'),
@@ -1753,7 +1767,7 @@ def detect_encoding(text_block):
 
   # By default ... we have no idea.
   return None
-  
+
 def transcode_text(text, encoding=None):
   """If ENCODING is provided and not 'utf-8', transcode TEXT from
   ENCODING to UTF-8."""
@@ -1824,7 +1838,7 @@ def markup_file_contents(request, cfg, file_lines, filename,
                                      stripnl=False)
       except ClassNotFound:
         pygments_lexer = None
-        
+
   # If we aren't highlighting, just return FILE_LINES, corrected for
   # encoding (if possible).
   if not pygments_lexer:
@@ -1854,12 +1868,12 @@ def markup_file_contents(request, cfg, file_lines, filename,
         line = line.expandtabs(cfg.options.tabsize)
       file_lines[i] = markup_escaped_urls(sapi.escape(line))
     return file_lines
-  
+
   # If we get here, we're highlighting something.
   class PygmentsSink:
     def __init__(self):
       self.colorized_file_lines = []
-    
+
     def write(self, buf):
       ### FIXME:  Don't bank on write() being called once per line
       self.colorized_file_lines.append(markup_escaped_urls(buf.rstrip('\n\r')))
@@ -1875,7 +1889,7 @@ def empty_blame_item(line, line_no):
   blame_item = vclib.Annotation(line, line_no, None, None, None, None)
   blame_item.diff_href = None
   return blame_item
-  
+
 def merge_blame_data(file_lines, blame_data):
   errorful = 0
   if blame_data and (len(file_lines) != len(blame_data)):
@@ -1890,7 +1904,7 @@ def merge_blame_data(file_lines, blame_data):
     else:
       new_blame_data.append(empty_blame_item(line, i + 1))
   return blame_data or new_blame_data, errorful
-  
+
 def make_time_string(date, cfg):
   """Returns formatted date string in either local time or UTC.
 
@@ -1932,7 +1946,7 @@ def make_comma_sep_list_string(items):
   return ', '.join([x.name for x in items])
 
 def is_undisplayable(val):
-  if sys.version_info[0] >= 3:
+  if PY3:
     # XXX: must revise usage later
     try:
       str(val)
@@ -1971,7 +1985,7 @@ def parse_mime_type(mime_type):
     name, value = part.split('=', 1)
     parameters[name] = value
   return type_subtype, parameters
-  
+
 def calculate_mime_type(request, path_parts, rev):
   """Return a 2-tuple carrying the MIME content type and character
   encoding for the file represented by PATH_PARTS in REV.  Use REQUEST
@@ -1999,7 +2013,7 @@ def assert_viewable_filesize(cfg, filesize):
                                 'disallowed by configuration'
                                 % (cfg.options.max_filesize_kbytes),
                                 '403 Forbidden')
-  
+
 def markup_or_annotate(request, is_annotate):
   cfg = request.cfg
   path, rev = _orig_path(request, is_annotate and 'annotate' or 'revision')
@@ -2012,7 +2026,7 @@ def markup_or_annotate(request, is_annotate):
   if is_binary_file_mime_type(mime_type, cfg):
     raise debug.ViewVCException('Display of binary file content disabled '
                                 'by configuration', '403 Forbidden')
-    
+
   # Is this a viewable image type?
   if is_viewable_image(mime_type) \
      and 'co' in cfg.options.allowed_views:
@@ -2100,7 +2114,7 @@ def markup_or_annotate(request, is_annotate):
     lines, errorful = merge_blame_data(lines, blame_data)
     if errorful:
       annotation = 'error'
-        
+
   data = common_template_data(request, revision, mime_type)
   data.merge(TemplateData({
     'mime_type' : mime_type,
@@ -2163,9 +2177,9 @@ def markup_or_annotate(request, is_annotate):
                                         pathtype=vclib.FILE,
                                         params={'pathrev': revision},
                                         escape=1)
-    
+
   generate_page(request, "file", data)
-  
+
 def view_markup(request):
   if 'markup' not in request.cfg.options.allowed_views:
     raise debug.ViewVCException('Markup view is disabled',
@@ -2238,10 +2252,11 @@ def sort_file_data(file_data, roottype, sortdir, sortby, group_dirs):
     # sort by file name
     return s * cmp(file1.name, file2.name)
 
-  if sys.version_info[0] >= 3:
+  if PY3:
     file_data.sort(key=functools.cmp_to_key(file_sort_cmp))
   else:
     file_data.sort(file_sort_cmp)
+
 def icmp(x, y):
   """case insensitive comparison"""
   return cmp(x.lower(), y.lower())
@@ -2250,13 +2265,13 @@ def view_roots(request):
   if 'roots' not in request.cfg.options.allowed_views:
     raise debug.ViewVCException('Root listing view is disabled',
                                 '403 Forbidden')
-  
+
   # add in the roots for the selection
   roots = []
   expand_root_parents(request.cfg)
   allroots = list_roots(request)
   if len(allroots):
-    if sys.version_info[0] >= 3:
+    if PY3:
       rootnames = sorted(allroots.keys(), key=functools.cmp_to_key(icmp))
     else:
       rootnames = sorted(allroots.keys(), icmp)
@@ -2300,20 +2315,28 @@ def view_directory(request):
       rev = request.repos._getrev(request.pathrev)
     except vclib.InvalidRevision:
       raise debug.ViewVCException('Invalid revision', '404 Not Found')
-    tree_rev = request.repos.created_rev(request.where, rev)
+    if not PY3 or isinstance(request.where, bytes) or request.where is None:
+      b_where = request.where
+    else:
+      b_where = request.where.encode('utf-8', 'surrogateescape')
+    tree_rev = request.repos.created_rev(b_where, rev)
     if check_freshness(request, None, str(tree_rev), weak=1):
       return
 
   # List current directory
   options = {}
   if request.roottype == 'cvs':
-    hideattic = int(request.query_dict.get('hideattic', 
+    hideattic = int(request.query_dict.get('hideattic',
                                            cfg.options.hide_attic))
     options["cvs_subdirs"] = (cfg.options.show_subdir_lastmod and
                               cfg.options.show_logs)
   debug.t_start("listdir")
-  file_data = request.repos.listdir(request.path_parts, request.pathrev,
-                                    options)
+  if PY3 and request.path_parts and isinstance(request.path_parts[0], str):
+    b_pp = [pp.encode('utf-8', 'surroageteescape')
+            for pp in request.path_parts]
+  else:
+    b_pp = request.path_parts
+  file_data = request.repos.listdir(b_pp, request.pathrev, options)
   debug.t_end("listdir")
 
   # sort with directories first, and using the "sortby" criteria
@@ -2342,10 +2365,10 @@ def view_directory(request):
     sort_file_data(file_data, request.roottype, sortdir, sortby,
                    cfg.options.sort_group_dirs)
     # request dirlogs only for the slice of files in "this page"
-    request.repos.dirlogs(request.path_parts, request.pathrev,
+    request.repos.dirlogs(b_pp, request.pathrev,
                           file_data[dirlogs_first:dirlogs_last], options)
   else:
-    request.repos.dirlogs(request.path_parts, request.pathrev,
+    request.repos.dirlogs(b_pp, request.pathrev,
                           file_data, options)
     sort_file_data(file_data, request.roottype, sortdir, sortby,
                    cfg.options.sort_group_dirs)
@@ -2361,10 +2384,13 @@ def view_directory(request):
   rows = [ ]
   num_displayed = 0
   num_dead = 0
-  
+
   # set some values to be used inside loop
-  where = request.where
-  where_prefix = where and where + '/'
+  if PY3 and isinstance(request.where, bytes):
+    s_where = request.where.decode('utf-8', 'surrogateescape')
+  else:
+    s_where = request.where
+  s_where_prefix = s_where and s_where + '/'
 
   debug.t_start("row-building")
   for file in file_data:
@@ -2390,8 +2416,12 @@ def view_directory(request):
       row.short_log = lf.get(maxlen=cfg.options.short_log_len, htmlize=1)
       debug.t_end("dirview_logformat")
     row.lockinfo = file.lockinfo
-    row.anchor = request.server.escape(file.name)
-    row.name = request.server.escape(file.name)
+    if PY3 and isinstance(file.name, bytes):
+       s_name = file.name.decode('utf-8', 'surroageteescape')
+    else:
+       s_name = file.name
+    row.anchor = request.server.escape(s_name)
+    row.name = request.server.escape(s_name)
     row.pathtype = (file.kind == vclib.FILE and 'file') or \
                    (file.kind == vclib.DIR and 'dir')
     row.errors = file.errors
@@ -2399,11 +2429,11 @@ def view_directory(request):
     if file.kind == vclib.DIR:
       if cfg.options.hide_cvsroot \
          and is_cvsroot_path(request.roottype,
-                             request.path_parts + [file.name]):
+                             request.path_parts + [s_name]):
         continue
-    
+
       row.view_href = request.get_url(view_func=view_directory,
-                                      where=where_prefix+file.name,
+                                      where=s_where_prefix+s_name,
                                       pathtype=vclib.DIR,
                                       params={},
                                       escape=1)
@@ -2416,38 +2446,41 @@ def view_directory(request):
       if request.roottype == 'cvs' and file.rev is not None:
         row.rev = None
         if cfg.options.show_logs:
-          row.log_file = file.newest_file
+          if PY3 and isinstance(file.newest_file, bytes):
+            row.log_file = file.newest_file.decode('utf-8', 'surrogateescape')
+          else:
+            row.log_file = file.newest_file
           row.log_rev = file.rev
 
       if request.roottype == 'svn':
         row.log_href = request.get_url(view_func=view_log,
-                                       where=where_prefix + file.name,
+                                       where=s_where_prefix + s_name,
                                        pathtype=vclib.DIR,
                                        params={},
                                        escape=1)
-      
+
     elif file.kind == vclib.FILE:
       if searchstr is not None:
         if request.roottype == 'cvs' and (file.errors or file.dead):
           continue
-        if not search_file(request.repos, request.path_parts + [file.name],
+        if not search_file(request.repos, request.path_parts + [s_name],
                            request.pathrev, searchstr):
           continue
       if request.roottype == 'cvs' and file.dead:
         num_dead = num_dead + 1
         if hideattic:
           continue
-        
+
       num_displayed = num_displayed + 1
 
-      file_where = where_prefix + file.name
-      if request.roottype == 'svn': 
+      s_file_where = s_where_prefix + s_name
+      if request.roottype == 'svn':
         row.size = file.size
 
       row.mime_type, encoding = calculate_mime_type(request,
-                                                    _path_parts(file_where),
+                                                    _path_parts(s_file_where),
                                                     file.rev)
-      fvi = get_file_view_info(request, file_where, file.rev, row.mime_type)
+      fvi = get_file_view_info(request, s_file_where, file.rev, row.mime_type)
       row.view_href = fvi.view_href
       row.download_href = fvi.download_href
       row.download_text_href = fvi.download_text_href
@@ -2455,13 +2488,13 @@ def view_directory(request):
       row.revision_href = fvi.revision_href
       row.prefer_markup = fvi.prefer_markup
       row.log_href = request.get_url(view_func=view_log,
-                                     where=file_where,
+                                     where=s_file_where,
                                      pathtype=vclib.FILE,
                                      params={},
                                      escape=1)
       if cfg.options.use_cvsgraph and request.roottype == 'cvs':
          row.graph_href = request.get_url(view_func=view_cvsgraph,
-                                          where=file_where,
+                                          where=s_file_where,
                                           pathtype=vclib.FILE,
                                           params={},
                                           escape=1)
@@ -2550,7 +2583,7 @@ def view_directory(request):
     data['branch_tags'] = []
     for branch_tag in branch_tags:
       data['branch_tags'].append(_item(name=branch_tag,revision=None))
-    
+
     data['attic_showing'] = ezt.boolean(not hideattic)
     data['show_attic_href'] = request.get_url(params={'hideattic': 0},
                                               escape=1)
@@ -2628,7 +2661,7 @@ def paging_sws(data, key, pagestart, local_name, pagesize,
     try:
       pick.end = getattr(data[key][i+pagesize-1], local_name)
     except IndexError:
-      pick.end = getattr(data[key][-1], local_name)   
+      pick.end = getattr(data[key][-1], local_name)
     picklist.append(pick)
     if pick.count >= last_requested:
       pick.more = ezt.boolean(1)
@@ -2683,9 +2716,9 @@ def redirect_pathrev(request):
   new_pathrev = request.query_dict.get('pathrev') or None
   path = request.query_dict.get('orig_path', '')
   pathtype = request.query_dict.get('orig_pathtype')
-  pathrev = request.query_dict.get('orig_pathrev') 
+  pathrev = request.query_dict.get('orig_pathrev')
   view = _views.get(request.query_dict.get('orig_view'))
-  
+
   youngest = request.repos.get_youngest_revision()
 
   # go out of the way to allow revision numbers higher than youngest
@@ -2707,7 +2740,7 @@ def redirect_pathrev(request):
     if new_pathrev is None and pathrev == youngest:
       pathrev = None
 
-  request.server.redirect(request.get_url(view_func=view, 
+  request.server.redirect(request.get_url(view_func=view,
                                           where=path,
                                           pathtype=pathtype,
                                           params={'pathrev': pathrev}))
@@ -2717,6 +2750,11 @@ def view_log(request):
   diff_format = request.query_dict.get('diff_format', cfg.options.diff_format)
   pathtype = request.pathtype
 
+  if PY3 and request.path_parts and isinstance(request.path_parts[0], str):
+    b_pp = [pp.encode('utf-8', 'surroageteescape')
+            for pp in request.path_parts]
+  else:
+    b_pp = request.path_parts
   if pathtype is vclib.DIR:
     if request.roottype == 'cvs':
       raise debug.ViewVCException('Unsupported feature: log view on CVS '
@@ -2750,7 +2788,7 @@ def view_log(request):
     total = cfg.options.log_pagesextra * cfg.options.log_pagesize
     first = log_pagestart - min(log_pagestart, total)
     last = log_pagestart + (total + cfg.options.log_pagesize) + 1
-  show_revs = request.repos.itemlog(request.path_parts, request.pathrev,
+  show_revs = request.repos.itemlog(b_pp, request.pathrev,
                                     sortby, first, last - first, options)
 
   # selected revision
@@ -2789,7 +2827,16 @@ def view_log(request):
     entry.diff_to_prev_href = None
     entry.diff_to_branch_href = None
     entry.diff_to_main_href = None
-        
+
+    if PY3 and isinstance(rev.filename, bytes):
+      s_filename = rev.filename.decode('utf-8', 'surrogateescape')
+    else:
+      s_filename = rev.fliename
+    if PY3 and isinstance(rev.filename, str):
+      b_filename = rev.filename.encode('utf-8', 'surrogateescape')
+    else:
+      b_filename = rev.filename
+
     if request.roottype == 'cvs':
       prev = rev.prev or rev.parent
       entry.prev = prev and prev.string
@@ -2825,9 +2872,12 @@ def view_log(request):
       entry.branches = entry.tags = entry.branch_points = [ ]
       entry.tag_names = entry.branch_names = [ ]
       entry.vendor_branch = None
-      if rev.filename != request.where:
-        entry.orig_path = rev.filename
-      entry.copy_path = rev.copy_path
+      if s_filename != request.where:
+        entry.orig_path = s_filename
+      if PY3 and isinstance(rev.copy_path, bytes):
+        entry.copy_path = rev.copy_path.decode('utf-8', 'surrogate_escape')
+      else:
+        entry.copy_path = rev.copy_path
       entry.copy_rev = rev.copy_rev
 
       if entry.orig_path:
@@ -2839,7 +2889,7 @@ def view_log(request):
 
       if rev.copy_path:
         entry.copy_href = request.get_url(view_func=view_log,
-                                          where=rev.copy_path,
+                                          where=entry.copy_path,
                                           pathtype=vclib.FILE,
                                           params={'pathrev': rev.copy_rev},
                                           escape=1)
@@ -2859,7 +2909,7 @@ def view_log(request):
                                             params={'revision': rev.string},
                                             escape=1)
       entry.view_href = request.get_url(view_func=view_directory,
-                                        where=rev.filename,
+                                        where=s_filename,
                                         pathtype=vclib.DIR,
                                         params={'pathrev': rev.string},
                                         escape=1)
@@ -2982,7 +3032,7 @@ def view_log(request):
       data['tag_annotate_href']= fvi.annotate_href
       data['tag_prefer_markup']= fvi.prefer_markup
   else:
-    data['head_view_href'] = request.get_url(view_func=view_directory, 
+    data['head_view_href'] = request.get_url(view_func=view_directory,
                                              params={}, escape=1)
 
   taginfo = options.get('cvs_tags', {})
@@ -3025,7 +3075,7 @@ def view_log(request):
 def view_checkout(request):
 
   cfg = request.cfg
-  
+
   if 'co' not in cfg.options.allowed_views:
     raise debug.ViewVCException('Checkout view is disabled',
                                  '403 Forbidden')
@@ -3052,7 +3102,7 @@ def cvsgraph_make_reqopt(request, cfgname, queryparam, optvalue):
   # options and QUERYPARAM's presence and boolean interpretation in
   # the actual request; otherwise, return the empty string for options
   # that either aren't overridden or aren't allowed to be overridden.
-  
+
   if (cfgname in request.cfg.options.allowed_cvsgraph_useropts) \
      and (int(request.query_dict.get(queryparam, 0))):
     return optvalue
@@ -3066,12 +3116,12 @@ def cvsgraph_normalize_gshow(request):
   if gshow not in ('all', 'inittagged', 'tagged'):
     gshow = 'all'
   return gshow
-  
+
 def cvsgraph_extraopts(request):
   # Build a set of -O options for controlling cvsgraph's behavior,
   # based on what the user has requested and filtered against what the
   # user is allowed to request.
-  
+
   cfg = request.cfg
 
   ep = '-O'
@@ -3098,7 +3148,7 @@ def cvsgraph_extraopts(request):
     ep = ep + ';rev_maxtags=' + request.query_dict['gmaxtag']
 
   return ep + ';'
-  
+
 def view_cvsgraph_image(request):
   "output the image rendered by cvsgraph"
   # this function is derived from cgi/cvsgraphmkimg.cgi
@@ -3119,11 +3169,11 @@ def view_cvsgraph_image(request):
                            cvsgraph_extraopts(request),
                            rcsfile), stdout=subprocess.PIPE,
                            close_fds=(sys.platform != "win32"))
-  
+
   copy_stream(proc.stdout, get_writeready_server_file(request, 'image/png'))
   ret = proc.poll()
   if ret is None:
-    proc.kill()  
+    proc.kill()
 
 def view_cvsgraph(request):
   "output a page containing an image rendered by cvsgraph"
@@ -3151,7 +3201,7 @@ def view_cvsgraph(request):
                            "-x", "x",
                            "-3", request.get_url(view_func=view_log, params={},
                                                  escape=1),
-                           "-4", request.get_url(view_func=view, 
+                           "-4", request.get_url(view_func=view,
                                                  params={'revision': None},
                                                  escape=1, partial=1),
                            "-5", request.get_url(view_func=view_diff,
@@ -3195,7 +3245,11 @@ def search_file(repos, path_parts, rev, search_re):
 
   # Read in each line of a checked-out file, and then use re.search to
   # search line.
-  fp = repos.openfile(path_parts, rev, {})[0]
+  if sys.version_info[0] < 3 or isinstance(pathparts[0], bytes):
+    b_path_parts = path_parts
+  else:
+    b_path_parts = [p.encode('utf-8') for p in path_parts]
+  fp = repos.openfile(b_path_parts, rev, {})[0]
   matches = 0
   while 1:
     line = fp.readline()
@@ -3270,7 +3324,7 @@ class DiffSource:
     self.save_line = None
     self.line_number = None
     self.prev_line_number = None
-    
+
     # keep track of where we are during an iteration
     self.idx = -1
     self.last = None
@@ -3301,11 +3355,11 @@ class DiffSource:
     if self.cfg.options.tabsize > 0:
       text = text.expandtabs(self.cfg.options.tabsize)
     hr_breakable = self.cfg.options.hr_breakable
-    
+
     # in the code below, "\x01" will be our stand-in for "&". We don't want
     # to insert "&" because it would get escaped by sapi.escape().  Similarly,
     # we use "\x02" as a stand-in for "<br>"
-  
+
     if hr_breakable > 1 and len(text) > hr_breakable:
       text = re.sub('(' + ('.' * hr_breakable) + ')', '\\1\x02', text)
     if hr_breakable:
@@ -3317,7 +3371,7 @@ class DiffSource:
     text = text.replace('\x01', '&')
     text = text.replace('\x02', '<span style="color:red">\</span><br />')
     return text
-    
+
   def _get_row(self):
     if self.state[:5] == 'flush':
       item = self._flush_row()
@@ -3357,7 +3411,7 @@ class DiffSource:
                    line_info_left=match.group(1),
                    line_info_right=match.group(2),
                    line_info_extra=self._format_text(match.group(3)))
-    
+
     if line[0] == '\\':
       # \ No newline at end of file
       # Just skip. This code used to move to flush state, but that resulted in
@@ -3366,7 +3420,7 @@ class DiffSource:
 
     diff_code = line[0]
     output = self._format_text(line[1:])
-    
+
     if diff_code == '+':
       if self.state == 'dump':
         self.line_number = self.line_number + 1
@@ -3469,7 +3523,7 @@ def diff_parse_headers(fp, diff_type, path1, path2, rev1, rev2,
       elif line[:3] == 'Bin':
         flag = _RCSDIFF_IS_BINARY
         parsing = 0
-      elif (line.find('not found') != -1 or 
+      elif (line.find('not found') != -1 or
             line.find('illegal option') != -1):
         flag = _RCSDIFF_ERROR
         parsing = 0
@@ -3527,7 +3581,7 @@ def setup_diff(request):
     else:
       rev1 = r1[:idx]
       sym1 = r1[idx+1:]
-      
+
   if r2 == 'text':
     rev2 = query_dict.get('tr2', None)
     if not rev2:
@@ -3549,7 +3603,7 @@ def setup_diff(request):
     except vclib.InvalidRevision:
       raise debug.ViewVCException('Invalid revision(s) passed to diff',
                                   '400 Bad Request')
-    
+
   p1 = _get_diff_path_parts(request, 'p1', rev1, request.pathrev)
   p2 = _get_diff_path_parts(request, 'p2', rev2, request.pathrev)
 
@@ -3597,7 +3651,7 @@ def view_patch(request):
   # Maybe not.  For a patch, perhaps the precise change is ideal.)
   diff_options = {}
   diff_options['funout'] = cfg.options.hr_funout
-  
+
   try:
     fp = request.repos.rawdiff(p1, rev1, p2, rev2, diff_type, diff_options)
   except vclib.InvalidRevision:
@@ -3629,7 +3683,7 @@ def diff_side_item(request, path_comp, rev, sym):
   path_joined = _path_join(path_comp)
 
   lf = LogFormatter(request, log_entry.log)
-  
+
   # Item for property diff: no hrefs, there's no view
   # to download/annotate property
   i_prop = _item(log_entry=log_entry,
@@ -3739,7 +3793,7 @@ class DiffDescription:
     if self.context != -1:
       diff_options['context'] = self.context
     if self.human_readable or self.diff_format == 'u':
-      diff_options['funout'] = cfg.options.hr_funout      
+      diff_options['funout'] = cfg.options.hr_funout
     if self.human_readable:
       diff_options['ignore_white'] = cfg.options.hr_ignore_white
       diff_options['ignore_keyword_subst'] = \
@@ -3880,7 +3934,7 @@ def view_diff(request):
 
   cfg = request.cfg
   p1, p2, rev1, rev2, sym1, sym2 = setup_diff(request)
-  
+
   mime_type1, encoding1 = calculate_mime_type(request, p1, rev1)
   mime_type2, encoding2 = calculate_mime_type(request, p2, rev2)
   if is_binary_file_mime_type(mime_type1, cfg) or \
@@ -4018,7 +4072,7 @@ def generate_tarball(out, request, reldir, stack, dir_mtime=None):
     tar_dir = tar_dir + _path_join(reldir) + '/'
 
   cvs = request.roottype == 'cvs'
-  
+
   # If our caller doesn't dictate a datestamp to use for the current
   # directory, its datestamps will be the youngest of the datestamps
   # of versioned items in that subdirectory.  We'll be ignoring dead
@@ -4096,7 +4150,7 @@ def generate_tarball(out, request, reldir, stack, dir_mtime=None):
       # Write the tarball header...
       generate_tarball_header(out, tar_dir + file.name, filesize, mode,
                               file.date is not None and file.date or 0)
-      
+
       # ...the file's contents ...
       fp = request.repos.openfile(rep_path + [file.name], request.pathrev, {})[0]
       while 1:
@@ -4126,7 +4180,7 @@ def generate_tarball(out, request, reldir, stack, dir_mtime=None):
 
 def download_tarball(request):
   cfg = request.cfg
-  
+
   if 'tar' not in request.cfg.options.allowed_views:
     raise debug.ViewVCException('Tarball generation is disabled',
                                  '403 Forbidden')
@@ -4137,7 +4191,7 @@ def download_tarball(request):
   # our own gzip stream wrapper.
   if debug.TARFILE_PATH:
     fp = open(debug.TARFILE_PATH, 'w')
-  else:    
+  else:
     tarfile = request.rootname
     if request.path_parts:
       tarfile = "%s-%s" % (tarfile, request.path_parts[-1])
@@ -4178,7 +4232,7 @@ def view_revision(request):
   except vclib.InvalidRevision:
     raise debug.ViewVCException('Invalid revision', '404 Not Found')
   youngest_rev = request.repos.get_youngest_revision()
-  
+
   # The revision number acts as a weak validator (but we tell browsers
   # not to cache the youngest revision).
   if rev != youngest_rev and check_freshness(request, None, str(rev), weak=1):
@@ -4203,11 +4257,14 @@ def view_revision(request):
       value = None
     props.append(_item(name=name, value=value,
                        undisplayable=ezt.boolean(undisplayable)))
-  
+
   # Sort the changes list by path.
   def changes_sort_by_path(a, b):
     return cmp(a.path_parts, b.path_parts)
-  changes.sort(changes_sort_by_path)
+  if PY3:
+    changes.sort(key=functools.cmp_to_key(changes_sort_by_path))
+  else:
+    changes.sort(changes_sort_by_path)
 
   # Handle limit_changes parameter
   cfg_limit_changes = cfg.options.limit_changes
@@ -4272,14 +4329,14 @@ def view_revision(request):
       if (change.pathtype is vclib.FILE and change.text_changed) \
           or change.props_changed:
         change.diff_href = request.get_url(view_func=view_diff,
-                                           where=path, 
+                                           where=path,
                                            pathtype=change.pathtype,
                                            params={'pathrev' : str(rev),
                                                    'r1' : str(rev),
                                                    'r2' : str(change.base_rev),
                                                    },
                                            escape=1)
-    
+
 
     # use same variable names as the log template
     change.path = _path_join(change.path_parts)
@@ -4369,7 +4426,7 @@ def is_querydb_nonempty_for_root(request):
 def validate_query_args(request):
   # Do some additional input validation of query form arguments beyond
   # what is offered by the CGI param validation loop in Request.run_viewvc().
-  
+
   for arg_base in ['branch', 'file', 'comment', 'who']:
     # First, make sure the the XXX_match args have valid values:
     arg_match = arg_base + '_match'
@@ -4392,7 +4449,7 @@ def validate_query_args(request):
             'An illegal value was provided for the "%s" parameter.'
             % (arg_base),
             '400 Bad Request')
-  
+
 def view_queryform(request):
   if not is_query_supported(request):
     raise debug.ViewVCException('Can not query project root "%s" at "%s".'
@@ -4401,7 +4458,7 @@ def view_queryform(request):
 
   # Do some more precise input validation.
   validate_query_args(request)
-  
+
   query_action, query_hidden_values = \
     request.get_form(view_func=view_query, params={'limit_changes': None})
   limit_changes = \
@@ -4410,7 +4467,7 @@ def view_queryform(request):
 
   def escaped_query_dict_get(itemname, itemdefault=''):
     return request.server.escape(request.query_dict.get(itemname, itemdefault))
-    
+
   data = common_template_data(request)
   data.merge(TemplateData({
     'branch' : escaped_query_dict_get('branch', ''),
@@ -4437,7 +4494,7 @@ def view_queryform(request):
 
 def parse_date(datestr):
   """Parse a date string from the query form."""
-  
+
   match = re.match(r'^(\d\d\d\d)-(\d\d)-(\d\d)(?:\ +'
                    '(\d\d):(\d\d)(?::(\d\d))?)?$', datestr)
   if match:
@@ -4549,7 +4606,7 @@ def build_commit(request, files, max_files, dir_strip, format):
   plus_count = 0
   minus_count = 0
   found_unreadable = 0
-  
+
   for f in files:
     dirname = f.GetDirectory()
     filename = f.GetFile()
@@ -4580,7 +4637,7 @@ def build_commit(request, files, max_files, dir_strip, format):
          and is_cvsroot_path(request.roottype, path_parts):
         found_unreadable = 1
         continue
-      
+
       # We have to do a rare authz check here because this data comes
       # from the CVSdb, not from the vclib providers.
       #
@@ -4598,12 +4655,12 @@ def build_commit(request, files, max_files, dir_strip, format):
       if not readable:
         found_unreadable = 1
         continue
-         
+
     if request.roottype == 'svn':
       params = { 'pathrev': exam_rev }
     else:
-      params = { 'revision': exam_rev, 'pathrev': f.GetBranch() or None }  
-    
+      params = { 'revision': exam_rev, 'pathrev': f.GetBranch() or None }
+
     dir_href = request.get_url(view_func=view_directory,
                                where=dirname, pathtype=vclib.DIR,
                                params=params, escape=1)
@@ -4637,7 +4694,7 @@ def build_commit(request, files, max_files, dir_strip, format):
     minus = int(f.GetMinusCount())
     plus_count = plus_count + plus
     minus_count = minus_count + minus
-    
+
     num_allowed = num_allowed + 1
     if max_files and num_allowed > max_files:
       continue
@@ -4830,7 +4887,7 @@ def view_query(request):
   db.RunQuery(query)
   commit_list = query.GetCommitList()
   row_limit_reached = query.GetLimitReached()
-  
+
   # gather commits
   commits = []
   plus_count = 0
@@ -4850,7 +4907,7 @@ def view_query(request):
       # base modification time on the newest commit
       if commit.GetTime() > mod_time:
         mod_time = commit.GetTime()
-        
+
       # For CVS, group commits with the same commit message.
       # For Subversion, group them only if they have the same revision number
       if request.roottype == 'cvs':
@@ -4875,7 +4932,7 @@ def view_query(request):
       limited_files = 0
       current_desc = commit_desc
       current_rev = commit_rev
-      
+
     # we need to tack on our last commit grouping, if any
     commit_item = build_commit(request, files, limit_changes,
                                dir_strip, format)
@@ -4884,7 +4941,7 @@ def view_query(request):
       plus_count = plus_count + commit_item.plus
       minus_count = minus_count + commit_item.minus
       commits.append(commit_item)
-  
+
   # only show the branch column if we are querying all branches
   # or doing a non-exact branch match on a CVS repository.
   show_branch = ezt.boolean(request.roottype == 'cvs' and
@@ -4959,7 +5016,7 @@ for code, view in _views.items():
 def list_roots(request):
   cfg = request.cfg
   allroots = { }
-  
+
   # Add the viewable Subversion roots
   for root in cfg.general.svn_roots.keys():
     auth = setup_authorizer(cfg, request.username, root)
@@ -4995,7 +5052,7 @@ def list_roots(request):
     except vclib.ReposNotFound:
       continue
     allroots[root] = [cfg.general.cvs_roots[root], 'cvs', None]
-    
+
   return allroots
 
 def _parse_root_parent(pp):
@@ -5021,7 +5078,7 @@ def _parse_root_parent(pp):
 
 def expand_root_parents(cfg):
   """Expand the configured root parents into individual roots."""
-  
+
   # Each item in root_parents is a "directory [= context ] : repo_type" string.
   for pp in cfg.general.root_parents:
     path,context,repo_type = _parse_root_parent(pp)
@@ -5145,7 +5202,7 @@ def load_config(pathname=None, server=None):
   legacy name) and, if set, use its value as the path of the
   configuration file; otherwise, use PATHNAME (if provided).  Failing
   all else, use a hardcoded default configuration path."""
-  
+
   debug.t_start('load-config')
 
   # See if the environment contains overrides to the configuration
@@ -5176,7 +5233,7 @@ def load_config(pathname=None, server=None):
     files.reverse()
     files = list(map(lambda x, y=pathname: os.path.join(os.path.dirname(y), x), files))
     mimetypes.init(files)
-  
+
   debug.t_end('load-config')
   return cfg
 
@@ -5189,7 +5246,7 @@ def view_error(server, cfg):
   if exc_dict['stacktrace']:
     exc_dict['stacktrace'] = server.escape(exc_dict['stacktrace'])
   handled = 0
-  
+
   # use the configured error template if possible
   try:
     if cfg and not server.headerSent:
