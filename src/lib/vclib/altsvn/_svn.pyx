@@ -175,7 +175,7 @@ cdef class Svn_error(object):
             PyMem_Free(<void*>msgbuf)
         ELSE:
             if self._c_error is NULL:
-                estr = ''
+                estr = b''
             else:
                 eptr = self._c_error
                 if eptr.message is not NULL:
@@ -187,8 +187,9 @@ cdef class Svn_error(object):
                     if eptr.message is not NULL:
                         estr = estr + b'\n' + eptr.message
                     eptr = eptr.child
-            IF PY_VERSION >= (3, 0, 0):
-                estr = eptr.decode('utf-8')
+
+        IF PY_VERSION >= (3, 0, 0):
+            estr = estr.decode('utf-8', 'surrogateescape')
         return estr
     def __dealloc__(self):
         # svn_error_clear allows to clear NULL
@@ -205,7 +206,12 @@ class SVNerr(General):
     def __str__(self):
         return str(self.svnerr)
     def __repr__(self):
-        return str(self.svnerr)
+        emsg  = str(self.svnerr)
+        ecode = self.getcode()
+        if emsg:
+           return '<SVNerr {0}: {1}>'.format(ecode, emsg)
+        else:
+           return '<SVNerr {0}>'.format(ecode)
     def get_code(self):
         if (<Svn_error>self.svnerr)._c_error is NULL:
             return 0
