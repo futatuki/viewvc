@@ -13,6 +13,7 @@
 "Version Control lib driver for locally accessible Subversion repositories"
 
 import vclib
+import sys
 import os
 import os.path
 import io
@@ -23,6 +24,8 @@ from . import _svn, _svn_repos, _path_parts, _cleanup_path,\
 ### Require Subversion 1.3.1 or better.
 if (_svn.SVN_VER_MAJOR, _svn.SVN_VER_MINOR, _svn.SVN_VER_PATCH) < (1, 3, 1):
   raise vclib.Error("Version requirement not met (needs 1.3.1 or better)")
+
+PY3 = (sys.version_info[0] >= 3)
 
 def _allow_all(root, path, baton, pool):
   """Generic authz_read_func that permits access to all paths"""
@@ -430,7 +433,10 @@ class LocalSubversionRepository(vclib.Repository):
           found_readable = 1
         else:
           found_unreadable = 1
-      return found_readable, found_unreadable, changedpaths.values()
+      if PY3:
+        return found_readable, found_unreadable, list(changedpaths.values())
+      else:
+        return found_readable, found_unreadable, changedpaths.values()
 
     def _get_change_copyinfo(fsroot, path, change):
       # If we know the copyfrom info, return it...
@@ -605,7 +611,10 @@ class LocalSubversionRepository(vclib.Repository):
     return rev_paths
 
   def _getpath(self, path_parts):
-    return b'/'.join(path_parts)
+    if path_parts and not isinstance(path_parts[0], bytes):
+      return '/'.join(path_parts).encode('utf-8')
+    else:
+      return b'/'.join(path_parts)
 
   def _getrev(self, rev):
     if rev is None or rev == 'HEAD':
@@ -644,6 +653,8 @@ class LocalSubversionRepository(vclib.Repository):
     return self.youngest
 
   def get_location(self, path, rev, old_rev):
+    if not isinstance(path, bytes):
+      path = path.encode('utf-8', 'surrogateescape')
     try:
       results = _svn_repos.svn_repos_trace_node_locations(
                       self.fs_ptr, path, rev, [old_rev], _allow_all, None)
@@ -659,6 +670,8 @@ class LocalSubversionRepository(vclib.Repository):
     return _cleanup_path(old_path)
 
   def created_rev(self, full_name, rev):
+    if not isinstance(full_name, bytes):
+      full_name = full_name.encode('utf-8', 'surrogateescape')
     return _svn_repos.svn_fs_node_created_rev(
                     self._getroot(rev), full_name, self.scratch_pool)
 
@@ -667,6 +680,9 @@ class LocalSubversionRepository(vclib.Repository):
     revision older than, or equal to, LIMIT_REVISION in which path
     exists.  Return that revision, and the path at which PATH exists in
     that revision."""
+
+    if not isinstance(path, bytes):
+        path = path.encode('utf-8', 'surrogateescape')
 
     # Here's the plan, man.  In the trivial case (where PEG_REVISION is
     # the same as LIMIT_REVISION), this is a no-brainer.  If
