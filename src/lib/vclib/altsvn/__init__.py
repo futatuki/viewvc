@@ -19,7 +19,7 @@ from ._svn import canonicalize_path as _canonicalize_path
 from ._svn import canonicalize_rootpath as canonicalize_rootpath
 
 def _path_parts(path):
-  return filter(None, path.split(b'/'))
+  return [pp for pp in path.split(b'/') if pp]
 
 
 def _cleanup_path(path):
