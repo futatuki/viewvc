@@ -757,7 +757,7 @@ class LocalSubversionRepository(vclib.Repository):
     # and with file contents which read "link SOME_PATH".
     if path_type != vclib.FILE:
       return None
-    props = _svn_repos.svn_fs_node_proplist(fsroot, path, self.scrach_pool)
+    props = _svn_repos.svn_fs_node_proplist(fsroot, path, self.scratch_pool)
     if _svn.SVN_PROP_SPECIAL not in props:
       return None
     pathspec = b''
