@@ -17,14 +17,14 @@ import re
 import vclib
 from ._svn import canonicalize_path as _canonicalize_path
 from ._svn import canonicalize_rootpath as canonicalize_rootpath
+from ._svn import _norm
 
 def _path_parts(path):
-  return [pp for pp in path.split(b'/') if pp]
-
+    return [_norm(pp) for pp in path.split(b'/') if pp]
 
 def _cleanup_path(path):
   """Return a cleaned-up Subversion filesystem path"""
-  return b'/'.join(_path_parts(path))
+  return b'/'.join([pp for pp in path.split(b'/') if pp])
 
 
 def _compare_paths(path1, path2):

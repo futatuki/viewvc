@@ -233,7 +233,6 @@ class RemoteSubversionRepository(vclib.Repository):
     rev = self._getrev(rev)
     dirents, locks = self._get_dirents(path, rev)
     for entry in entries:
-      entry_path_parts = path_parts + [entry.name]
       dirent = dirents.get(entry.name, None)
       # dirents is authz-sanitized, so ensure the entry is found therein.
       if dirent is None:
@@ -259,6 +258,8 @@ class RemoteSubversionRepository(vclib.Repository):
     lockinfo = size_in_rev = None
     if path_type == vclib.FILE:
       basename = path_parts[-1]
+      if not isinstance(basename, bytes):
+          basename = basename.encode('utf-8', 'surrogateescape')
       list_url = self._geturl(self._getpath(path_parts[:-1]))
       dirents, locks = _svn_ra.list_directory(
                             list_url, rev, rev, 0, self.ctx, self.scratch_pool)
@@ -406,10 +407,10 @@ class RemoteSubversionRepository(vclib.Repository):
     return dirent.size
 
   def _getpath(self, path_parts):
-    if path_parts and not isinstance(path_parts[0], bytes):
-      return '/'.join(path_parts).encode('utf-8')
-    else:
-      return b'/'.join(path_parts)
+    # this always returns path in bytes
+    return b'/'.join([pp if isinstance(pp, bytes)
+                         else pp.encode('utf-8', 'surrogateescape')
+                           for pp in path_parts])
 
   def _getrev(self, rev):
     if PY3 and isinstance(rev, bytes):
@@ -452,7 +453,7 @@ class RemoteSubversionRepository(vclib.Repository):
                                                   self.ctx, self.scratch_pool)
       dirents = {}
       for name, dirent in tmp_dirents.items():
-        dirent_parts = path_parts + [name]
+        dirent_parts = path_parts + [_svn._norm(name)]
         kind = dirent.kind
         if (kind == _svn.svn_node_dir or kind == _svn.svn_node_file) \
            and vclib.check_path_access(self, dirent_parts,

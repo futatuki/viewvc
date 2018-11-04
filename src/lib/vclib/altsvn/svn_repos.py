@@ -203,7 +203,7 @@ class LocalSubversionRepository(vclib.Repository):
     entries = [ ]
     for entry in dirents.values():
       if vclib.check_path_access(
-                  self, path_parts + [entry.name], entry.kind, rev):
+              self, path_parts + [_svn._norm(entry.name)], entry.kind, rev):
         entries.append(vclib.DirEntry(entry.name, entry.kind))
     self.scratch_pool.clear()
     return entries
@@ -215,7 +215,7 @@ class LocalSubversionRepository(vclib.Repository):
     fsroot = self._getroot(self._getrev(rev))
     rev = self._getrev(rev)
     for entry in entries:
-      entry_path_parts = path_parts + [entry.name]
+      entry_path_parts = path_parts + [_svn._norm(entry.name)]
       if not vclib.check_path_access(self, entry_path_parts, entry.kind, rev):
         continue
       path = self._getpath(entry_path_parts)
@@ -611,10 +611,10 @@ class LocalSubversionRepository(vclib.Repository):
     return rev_paths
 
   def _getpath(self, path_parts):
-    if path_parts and not isinstance(path_parts[0], bytes):
-      return '/'.join(path_parts).encode('utf-8')
-    else:
-      return b'/'.join(path_parts)
+    # this always returns path in bytes
+    return b'/'.join([pp if isinstance(pp, bytes)
+                         else pp.encode('utf-8', 'surrogateescape')
+                           for pp in path_parts])
 
   def _getrev(self, rev):
     if PY3 and isinstance(rev, bytes):
