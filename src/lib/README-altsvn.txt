@@ -11,7 +11,7 @@ Python 3.x yet, but uses bridge module to access C API, written in Cython.
   with 3.6 and 3.7)
 * Cython 0.28 or above (not tested in 0.27 and below, and it is obviously
   needed 0.24 or above for @property syntax)
-* C compiler
+* A C compiler
 * Subversion (1.3 and above) with development library
 * Apache Portable Runtime development library 1.x (may be installed
   by dependency of Subversion's development library)
@@ -27,13 +27,13 @@ Python 3.x yet, but uses bridge module to access C API, written in Cython.
 [How to build]
 (1) Move to src/lib subdirectory
 (2) Run "python setup.py config".
-  It creates config.py, cython/capi/subversion_1/_svn_api_ver.pxi and
+  It creates cfg.py, cython/capi/subversion_1/_svn_api_ver.pxi and
 vclib/altsvn/_svn_api_ver.pxi to store build parameter.
 Currently, semi-automatic config supports Unix like environment only,
 and it may not work correctly.
 If it is not work well, you must edit config.py and _svn_api_ver.pxi manually.
 
-In config.py, some variables to hold include file directories and
+In cfg.py, some variables to hold include file directories and
 library directory to build module are needed:
 
       apr_include_dir : path to include files for APR (string)
@@ -82,9 +82,6 @@ from cython/capi/subversion_1/_svn_api_ver.pxi.
 
 [To do]
 * more testing.
-  - integration test on Python 2.x
-  - unit test on Python 3.x
-  - bin/svndbadmin has been rewrited to use vclib.altsvn._svn* instead,
-    but not tested at all yet
+  - especially test for remote repos on Python 3
 * improve build and install process
   - platforms other than Unix like environment

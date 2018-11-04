@@ -26,6 +26,7 @@ The only hard software requirement for running ViewVC is a suitable version of P
 
 *   [ViewVC 1.1.x](https://raw.githubusercontent.com/viewvc/viewvc/1.1.x/INSTALL)
 *   [Unreleased bleeding edge (1.2-dev)](https://raw.githubusercontent.com/viewvc/viewvc/master/INSTALL)
+*   [Unofficial, Experimental Python 3 support](https://github.com/futatuki/viewvc/blob/python3_support_with_altsvn/INSTALL), with [alternative Subversion Access module](https://github.com/futatuki/viewvc/blob/python3_support_with_altsvn/src/lib/README-altsvn.txt)
 
 ## Getting ViewVC
 
@@ -49,7 +50,7 @@ Feel free to use our [Issue Tracker](https://github.com/viewvc/viewvc/issues) to
 
 ## License
 
-**Copyright © 1999-2017 The ViewCVS Group. All rights reserved.**
+**Copyright © 1999-2018 The ViewCVS Group. All rights reserved.**
 
 By using ViewVC, you agree to the terms and conditions set forth below:
 

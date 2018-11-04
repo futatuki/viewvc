@@ -38,6 +38,9 @@ Congratulations on getting this far. :-)
           (binary installation and Python bindings)
           (http://subversion.apache.org/)
 
+    For Python 3.x Support(Subversion only):
+      -> please see src/lib/README-altsvn
+
     Optional:
 
       * a web server capable of running CGI programs
