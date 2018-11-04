@@ -40,7 +40,9 @@ IF PY_VERSION >= (3, 0, 0):
     def _norm(s, encoding=_default_encoding, errors='surrogateescape'):
         return (s.decode(encoding, errors)
                     if not isinstance(s, str) and isinstance(s, bytes) else s)
-
+ELSE:
+    def _norm(s, encoding=_default_encoding, errors='surrogateescape'):
+        return s
 
 class General(Exception): pass
 class InitError(General): pass
