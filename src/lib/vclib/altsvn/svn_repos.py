@@ -617,10 +617,12 @@ class LocalSubversionRepository(vclib.Repository):
       return b'/'.join(path_parts)
 
   def _getrev(self, rev):
+    if PY3 and isinstance(rev, bytes):
+      rev = rev.decode('utf-8')
     if rev is None or rev == 'HEAD':
       return self.youngest
     try:
-      if type(rev) == type(''):
+      if isinstance(rev, str):
         while rev[0:1] == 'r':
           rev = rev[1:]
       rev = int(rev)
@@ -716,7 +718,7 @@ class LocalSubversionRepository(vclib.Repository):
         mid_id = None
         try:
           while peg_revision != limit_revision:
-            mid = (peg_revision + 1 + limit_revision) / 2
+            mid = (peg_revision + 1 + limit_revision) // 2
             try:
               mid_id = _svn_repos.svn_fs_node_id(
                               self._getroot(mid), path, self.scratch_pool)

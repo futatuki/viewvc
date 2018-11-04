@@ -94,7 +94,7 @@ def cat_to_tempfile(svnrepos, path, rev, scratch_pool):
 
 class SelfCleanFP:
   def __init__(self, path):
-    self._fp = open(path, 'r')
+    self._fp = open(path, 'rb')
     self._path = path
     self._eof = 0
 
@@ -109,7 +109,7 @@ class SelfCleanFP:
 
   def readline(self):
     chunk = self._fp.readline()
-    if chunk == '':
+    if chunk == b'':
       self._eof = 1
     return chunk
 
@@ -412,10 +412,12 @@ class RemoteSubversionRepository(vclib.Repository):
       return b'/'.join(path_parts)
 
   def _getrev(self, rev):
+    if PY3 and isinstance(rev, bytes):
+      rev = rev.decode('utf-8')
     if rev is None or rev == 'HEAD':
       return self.youngest
     try:
-      if type(rev) == type(''):
+      if isinstance(rev, str):
         while rev[0] == 'r':
           rev = rev[1:]
       rev = int(rev)
@@ -670,7 +672,7 @@ class RemoteSubversionRepository(vclib.Repository):
     else:
       direction = 1
       while peg_revision != limit_revision:
-        mid = (peg_revision + 1 + limit_revision) / 2
+        mid = (peg_revision + 1 + limit_revision) // 2
         try:
           path = self.get_location(path, peg_revision, mid)
         except vclib.ItemNotFound:
