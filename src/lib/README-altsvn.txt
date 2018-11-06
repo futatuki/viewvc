@@ -4,11 +4,10 @@ vclib.altsvn --- alternative module to access Subversion repository for ViewVC
 This is one of replacement of vclib.svn module, to support Python 3.x.
 It doesn't use swig Python binding of Subversion API, which is not support
 Python 3.x yet, but uses bridge module to access C API, written in Cython.
-(But it is not tested almost all on Python 3.x yet.)
+
 
 [Build Requirement]
-* Python 2.6/2.7 or 3.x (for 3.x, build test and few function test only
-  with 3.6 and 3.7)
+* Python 2.6/2.7 or 3.x (for 3.x, tested with 3.6 and 3.7 only)
 * Cython 0.28 or above (not tested in 0.27 and below, and it is obviously
   needed 0.24 or above for @property syntax)
 * C compiler
@@ -18,20 +17,20 @@ Python 3.x yet, but uses bridge module to access C API, written in Cython.
 
 
 [tested environment]
-* Python 2.1.15 / Cython 0.28 / Subversion 1.10.0 / FreeBSD 11
+* Python 2.7.15 / Cython 0.28 / Subversion 1.10.0 / FreeBSD 11
 * Python 2.6.6  / Cython 0.29 / Subversion 1.9.7  / Scientific Linux 6
 * Python 2.6.6  / Cython 0.29 / Subversion 1.8.14 / CentOS 6 (with
   ViewVC 1.1.26)
 
 
 [How to build]
-(1) Move to src/lib subdirectory
+(1) Move to src/lib subdirectory (it will be this directory)
 (2) Run "python setup.py config".
-  It creates config.py, cython/capi/subversion_1/_svn_api_ver.pxi and
+  It creates cfg.py, cython/capi/subversion_1/_svn_api_ver.pxi and
 vclib/altsvn/_svn_api_ver.pxi to store build parameter.
 Currently, semi-automatic config supports Unix like environment only,
 and it may not work correctly.
-If it is not work well, you must edit config.py and _svn_api_ver.pxi manually.
+If it is not work well, you must edit cfg.py and _svn_api_ver.pxi manually.
 
 In config.py, some variables to hold include file directories and
 library directory to build module are needed:
@@ -73,7 +72,7 @@ from cython/capi/subversion_1/_svn_api_ver.pxi.
 
 
 [How to use]
-(1) run "python setup.py install" in current directory, before run
+(1) run "python setup.py install" in this directory, before run
     install-viewvc script.
 (2) edit your viewvc.conf to use altsvn as svn access module.
     In "[vclib]" section, set 'use_altsvn = 1' (default is "use_altsvn = 0")
@@ -82,9 +81,6 @@ from cython/capi/subversion_1/_svn_api_ver.pxi.
 
 [To do]
 * more testing.
-  - integration test on Python 2.x
-  - unit test on Python 3.x
-  - bin/svndbadmin has been rewrited to use vclib.altsvn._svn* instead,
-    but not tested at all yet
+  - especially test for remote repos on Python 3
 * improve build and install process
   - platforms other than Unix like environment
