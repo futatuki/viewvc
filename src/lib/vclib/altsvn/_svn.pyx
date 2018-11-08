@@ -597,8 +597,6 @@ def datestr_to_date(datestr, scratch_pool=None):
     cdef _c_.svn_error_t * serr
     cdef Svn_error pyerr
     cdef _c_.apr_time_t _c_when
-    IF PY_VERSION >= (3, 0, 0):
-        cdef bytes b_datestr
     cdef _c_datestr
 
     if scratch_pool is not None:
@@ -613,10 +611,8 @@ def datestr_to_date(datestr, scratch_pool=None):
 
     IF PY_VERSION >= (3, 0, 0):
         if isinstance(datestr, str):
-            b_datestr = datestr.encode('utf-8', 'surrogateescape')
-        _c_datestr = <const char *>b_datestr
-    ELSE:
-        _c_datestr = <const char *>datestr
+            datestr = datestr.encode('utf-8', 'surrogateescape')
+    _c_datestr = <const char *>datestr
     try:
         serr = _c_.svn_time_from_cstring(
                         &_c_when, _c_datestr, _c_tmp_pool)
@@ -1048,11 +1044,11 @@ cdef class SvnRevnumPtrTrans(TransPtr):
 IF SVN_API_VER < (1, 4):
     # from ^/subversion/tags/1.3.0/subversion/libsvn_subr/stream.c,
     # private struct used by svn_stream_from_aprfile(),
-    # and may work on 1.10.0, but there is no warranty to work in future...
+    # and may work on 1.11.0, but there is no warranty to work in future...
     ctypedef struct baton_apr:
         _c_.apr_file_t * file
         _c_.apr_pool_t * pool
-    cdef _c_.svn_error_t * close_handler_apr(void *baton) nogil:
+    cdef _c_.svn_error_t * close_handler_apr(void *baton) with gil:
         cdef baton_apr * btn
         btn = <baton_apr *>baton
         return _c_.svn_io_file_close(btn[0].file, btn[0].pool)
@@ -1920,8 +1916,6 @@ IF SVN_API_VER >= (1, 10):
                         _c_.SVN_ERR_STREAM_NOT_SUPPORTED, NULL, NULL)
             return _c_err
         eol = _c_eol
-        IF PY_VERSION >= (3, 0, 0):
-            eol = _norm(eol)
         w_pool = Apr_Pool.__new__(Apr_Pool, None)
         w_pool.set_pool(pool)
         try:
@@ -2326,9 +2320,10 @@ ELSE:
         return _c_err
 
 def _get_annotated_source(
-        const char * path_or_url, object rev, object oldest_rev,
+        object path_or_url, object rev, object oldest_rev,
         object blame_func, svn_client_ctx_t ctx, object include_text=False,
         object scratch_pool=None):
+    cdef const char * _c_path_or_url
     cdef svn_opt_revision_t opt_rev
     cdef svn_opt_revision_t opt_oldest_rev
     cdef _c_.apr_status_t ast
@@ -2343,6 +2338,12 @@ def _get_annotated_source(
     IF SVN_API_VER >= (1, 5):
         cdef _c_.svn_diff_file_options_t * _c_diff_opt
 
+    # make sure path is a bytes object
+    if isinstance(path_or_url, PathLike):
+        path_or_url = path_or_url.__fspath__()
+    if not isinstance(path_or_url, bytes) and isinstance(path_or_url, str):
+        path_or_url = path_or_url.encode('utf-8')
+    _c_path_or_url = <const char *>path_or_url
     opt_rev = svn_opt_revision_t(_c_.svn_opt_revision_number, rev)
     opt_oldest_rev = svn_opt_revision_t(_c_.svn_opt_revision_number,
                                                   oldest_rev)
@@ -2366,7 +2367,7 @@ def _get_annotated_source(
             _c_diff_opt = _c_.svn_diff_file_options_create(_c_tmp_pool)
         IF SVN_API_VER >= (1, 7):
             serr = _c_.svn_client_blame5(
-                        path_or_url,
+                        _c_path_or_url,
                         &(opt_rev._c_opt_revision),
                         &(opt_oldest_rev._c_opt_revision),
                         &(opt_rev._c_opt_revision),
@@ -2375,7 +2376,7 @@ def _get_annotated_source(
                         ctx._c_ctx, _c_tmp_pool)
         ELIF SVN_API_VER >= (1, 5):
             serr = _c_.svn_client_blame4(
-                        path_or_url,
+                        _c_path_or_url,
                         &(opt_rev._c_opt_revision),
                         &(opt_oldest_rev._c_opt_revision),
                         &(opt_rev._c_opt_revision),
@@ -2384,7 +2385,7 @@ def _get_annotated_source(
                         ctx._c_ctx, _c_tmp_pool)
         ELIF SVN_API_VER >= (1, 4):
             serr = _c_.svn_client_blame3(
-                        path_or_url,
+                        _c_path_or_url,
                         &(opt_rev._c_opt_revision),
                         &(opt_oldest_rev._c_opt_revision),
                         &(opt_rev._c_opt_revision),
@@ -2393,7 +2394,7 @@ def _get_annotated_source(
                         ctx._c_ctx, _c_tmp_pool)
         ELSE:
             serr = _c_.svn_client_blame2(
-                        path_or_url,
+                        _c_path_or_url,
                         &(opt_rev._c_opt_revision),
                         &(opt_oldest_rev._c_opt_revision),
                         &(opt_rev._c_opt_revision),
