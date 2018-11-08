@@ -17,6 +17,7 @@ Python 3.x yet, but uses bridge module to access C API, written in Cython.
 
 
 [tested environment]
+* Python 3.7.1  / Cython 0.29 / Subversion 1.11.0 / FreeBSD 11
 * Python 2.7.15 / Cython 0.28 / Subversion 1.10.0 / FreeBSD 11
 * Python 2.6.6  / Cython 0.29 / Subversion 1.9.7  / Scientific Linux 6
 * Python 2.6.6  / Cython 0.29 / Subversion 1.8.14 / CentOS 6 (with
@@ -32,8 +33,8 @@ Currently, semi-automatic config supports Unix like environment only,
 and it may not work correctly.
 If it is not work well, you must edit cfg.py and _svn_api_ver.pxi manually.
 
-In config.py, some variables to hold include file directories and
-library directory to build module are needed:
+In cfg.py, some variables to hold include file directories and library
+directory to build module are needed:
 
       apr_include_dir : path to include files for APR (string)
       svn_include_dir : path to include files for Subversion (string)
