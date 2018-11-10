@@ -2338,7 +2338,7 @@ def _get_annotated_source(
     IF SVN_API_VER >= (1, 5):
         cdef _c_.svn_diff_file_options_t * _c_diff_opt
 
-    # make sure path is a bytes object
+    # make sure path_or_url is a bytes object
     if isinstance(path_or_url, PathLike):
         path_or_url = path_or_url.__fspath__()
     if not isinstance(path_or_url, bytes) and isinstance(path_or_url, str):

@@ -1,3 +1,4 @@
+include "_py_ver.pxi"
 include "_svn_api_ver.pxi"
 from cpython.ref cimport PyObject
 cimport _svn_repos_capi as _c_
@@ -80,9 +81,15 @@ cdef class _ChangedPath(object):
     cdef public _c_.svn_node_kind_t item_kind
     cdef public _c_.svn_boolean_t prop_changes
     cdef public _c_.svn_boolean_t text_changed
-    cdef public bytes base_path
+    IF PY_VERSION >= (3, 0, 0):
+        cdef public str base_path
+    ELSE:
+        cdef public bytes base_path
     cdef public _c_.svn_revnum_t base_rev
-    cdef public bytes path
+    IF PY_VERSION >= (3, 0, 0):
+        cdef public str path
+    ELSE:
+        cdef public bytes path
     cdef public _c_.svn_boolean_t added
     ### we don't use 'None' action
     cdef public _c_.svn_fs_path_change_kind_t action

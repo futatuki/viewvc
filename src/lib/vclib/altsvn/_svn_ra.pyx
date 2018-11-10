@@ -3,7 +3,15 @@ include "_py_ver.pxi"
 cimport _svn_ra_capi as _c_
 cimport _svn
 cimport _svn_repos
+import os
 from . import _svn
+
+try:
+    import os
+    PathLike = os.PathLike
+except AttributeError:
+    class PathLike(object):
+        pass
 
 def _ra_init():
     cdef _c_.svn_error_t * serr
@@ -58,13 +66,21 @@ def svn_ra_get_latest_revnum(svn_ra_session_t session, scratch_pool=None):
 
 
 def svn_ra_check_path(
-        svn_ra_session_t session, const char * _c_path,
+        svn_ra_session_t session, object path,
         _c_.svn_revnum_t _c_revision, object scratch_pool=None):
+    cdef const char * _c_path
     cdef _c_.apr_status_t ast
     cdef _c_.apr_pool_t * _c_tmp_pool
     cdef _c_.svn_error_t * serr
     cdef _svn.Svn_error pyerr
     cdef _c_.svn_node_kind_t _c_kind
+
+    # make sure path is a bytes object
+    if isinstance(path, PathLike):
+        path = path.__fspath__()
+    if not isinstance(path, bytes) and isinstance(path, str):
+        path = path.encode('utf-8')
+    _c_path = <const char *>path
 
     if scratch_pool is not None:
         assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
@@ -89,9 +105,10 @@ def svn_ra_check_path(
 
 
 def svn_ra_get_locations(
-        svn_ra_session_t session, const char * _c_path,
+        svn_ra_session_t session, object path,
         _c_.svn_revnum_t _c_peg_revision, object location_revisions,
         object scratch_pool):
+    cdef const char * _c_path
     cdef _svn.Apr_Pool tmp_pool
     cdef _c_.apr_array_header_t *_c_location_revisions
     cdef _svn.SvnRevnumPtrTrans revtrans
@@ -100,6 +117,13 @@ def svn_ra_get_locations(
     cdef _c_.svn_error_t * serr
     cdef _svn.Svn_error pyerr
     cdef object locations
+
+    # make sure path is a bytes object
+    if isinstance(path, PathLike):
+        path = path.__fspath__()
+    if not isinstance(path, bytes) and isinstance(path, str):
+        path = path.encode('utf-8')
+    _c_path = <const char *>path
 
     if scratch_pool is not None:
         assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
@@ -110,7 +134,7 @@ def svn_ra_get_locations(
         _c_location_revisions = _svn.make_revnum_array(location_revisions,
                                                        tmp_pool._c_pool)
         loctrans = _svn.HashTrans(_svn.SvnRevnumPtrTrans(),
-                                  _svn.CStringTransBytes(),
+                                  _svn.CStringTransStr(),
                                   tmp_pool)
         serr = _c_.svn_ra_get_locations(
                     session._c_session,
@@ -128,12 +152,20 @@ def svn_ra_get_locations(
 
 # custom version of svn_ra_open*() for svn_ra.py, using auth_baton, config,
 # and allocation pool from ctx
-def open_session_with_ctx(const char * rootpath, _svn.svn_client_ctx_t ctx):
+def open_session_with_ctx(object rootpath, _svn.svn_client_ctx_t ctx):
+    cdef const char * _c_rootpath
     cdef _c_.svn_ra_callbacks2_t * _c_callbacks
     cdef _c_.svn_error_t * serr
     cdef _svn.Svn_error pyerr
     cdef _c_.svn_ra_session_t * _c_session
     cdef svn_ra_session_t session
+
+    # make sure rootpath is a bytes object
+    if isinstance(rootpath, PathLike):
+        rootpath = rootpath.__fspath__()
+    if not isinstance(rootpath, bytes) and isinstance(rootpath, str):
+        rootpath = rootpath.encode('utf-8')
+    _c_rootpath = <const char *>rootpath
 
     assert isinstance(ctx, _svn.svn_client_ctx_t)
     serr = _c_.svn_ra_create_callbacks(&_c_callbacks, ctx.pool._c_pool)
@@ -144,15 +176,15 @@ def open_session_with_ctx(const char * rootpath, _svn.svn_client_ctx_t ctx):
     # we don't use any callback function, so we pass NULL as callback baton
     IF SVN_API_VER >= (1, 7):
         serr = _c_.svn_ra_open4(
-                    &_c_session, NULL, rootpath, NULL, _c_callbacks, NULL,
+                    &_c_session, NULL, _c_rootpath, NULL, _c_callbacks, NULL,
                     (ctx._c_ctx)[0].config, ctx.pool._c_pool)
     ELIF SVN_API_VER >= (1, 5):
         serr = _c_.svn_ra_open3(
-                    &_c_session, rootpath, NULL, _c_callbacks, NULL,
+                    &_c_session, _c_rootpath, NULL, _c_callbacks, NULL,
                     (ctx._c_ctx)[0].config, ctx.pool._c_pool)
     ELIF SVN_API_VER >= (1, 3):
         serr = _c_.svn_ra_open2(
-                    &_c_session, rootpath, _c_callbacks, NULL,
+                    &_c_session, _c_rootpath, _c_callbacks, NULL,
                     (ctx._c_ctx)[0].config, ctx.pool._c_pool)
     ELSE:
         # foolproof. we don't support API version below 1.3
@@ -225,12 +257,14 @@ IF SVN_API_VER >= (1, 4):
                 const char * _c_external_target,
                 _c_.apr_pool_t * _c_scratch_pool) with gil:
             cdef object btn
-            cdef bytes path
+            cdef object path
             cdef _Dirent dirent
             cdef _svn_repos.SvnLock lock
 
             btn = <object>_c_baton
             path = <bytes>_c_path
+            IF PY_VERSION >= (3, 0, 0):
+                path = _svn._norm(path)
             btn.dirents[path] = _svn_dirent_to_object(_c_dirent)
             if _c_lock is not NULL:
                 btn.locks[path] = _svn_repos._svn_lock_to_object(_c_lock)
@@ -244,12 +278,14 @@ IF SVN_API_VER >= (1, 4):
                 const char * _c_abs_path,
                 _c_.apr_pool_t * _c_scratch_pool) with gil:
             cdef _list_directory_baton btn
-            cdef bytes path
+            cdef object path
             cdef _Dirent dirent
             cdef _svn_repos.SvnLock lock
 
             btn = <_list_directory_baton>_c_baton
             path = <bytes>_c_path
+            IF PY_VERSION >= (3, 0, 0):
+                path = _svn._norm(path)
             btn.dirents[path] = _svn_dirent_to_object(_c_dirent)
             if _c_lock is not NULL:
                 btn.locks[path] = _svn_repos._svn_lock_to_object(_c_lock)
@@ -279,9 +315,10 @@ ELSE:
 
 
 def list_directory(
-        const char * url, _c_.svn_revnum_t peg_rev, _c_.svn_revnum_t rev,
+        object url, _c_.svn_revnum_t peg_rev, _c_.svn_revnum_t rev,
         object recurse, _svn.svn_client_ctx_t ctx,
         object scratch_pool=None):
+    cdef const char * _c_url
     cdef _svn.svn_opt_revision_t opt_peg_rev
     cdef _svn.svn_opt_revision_t opt_rev
     IF SVN_API_VER >= (1, 5):
@@ -299,6 +336,13 @@ def list_directory(
     cdef _c_.apr_pool_t * _c_tmp_pool
     cdef _c_.svn_error_t * serr
     cdef _svn.Svn_error pyerr
+
+    # make sure url is a bytes object
+    if isinstance(url, PathLike):
+        url = url.__fspath__()
+    if not isinstance(url, bytes) and isinstance(url, str):
+        url = url.encode('utf-8')
+    _c_url = <const char *>url
 
     opt_peg_rev = _svn.svn_opt_revision_t(_c_.svn_opt_revision_number, peg_rev)
     opt_rev = _svn.svn_opt_revision_t(_c_.svn_opt_revision_number, rev)
@@ -329,28 +373,28 @@ def list_directory(
     try:
         IF SVN_API_VER >= (1, 10):
             serr = _c_.svn_client_list4(
-                        url, &(opt_peg_rev._c_opt_revision),
+                        _c_url, &(opt_peg_rev._c_opt_revision),
                         &(opt_rev._c_opt_revision), NULL, _c_depth,
                         _c_.SVN_DIRENT_ALL, _c_.TRUE, _c_.FALSE,
                         _cb_list_directory, <void *>btn,
                         ctx._c_ctx, _c_tmp_pool)
         ELIF SVN_API_VER >= (1, 8):
             serr = _c_.svn_client_list3(
-                        url, &(opt_peg_rev._c_opt_revision),
+                        _c_url, &(opt_peg_rev._c_opt_revision),
                         &(opt_rev._c_opt_revision), _c_depth,
                         _c_.SVN_DIRENT_ALL, _c_.TRUE, _c_.FALSE,
                         _cb_list_directory, <void *>btn,
                         ctx._c_ctx, _c_tmp_pool)
         ELIF SVN_API_VER >= (1, 5):
             serr = _c_.svn_client_list2(
-                        url, &(opt_peg_rev._c_opt_revision),
+                        _c_url, &(opt_peg_rev._c_opt_revision),
                         &(opt_rev._c_opt_revision), _c_depth,
                         _c_.SVN_DIRENT_ALL, _c_.TRUE,
                         _cb_list_directory, <void *>btn,
                         ctx._c_ctx, _c_tmp_pool)
         ELIF SVN_API_VER >= (1, 4):
             serr = _c_.svn_client_list(
-                        url, &(opt_peg_rev._c_opt_revision),
+                        _c_url, &(opt_peg_rev._c_opt_revision),
                         &(opt_rev._c_opt_revision), _c_recurse,
                         _c_.SVN_DIRENT_ALL, _c_.TRUE,
                         _cb_list_directory, <void *>btn,
@@ -359,7 +403,7 @@ def list_directory(
             serr = _c_.svn_client_ls3(
                         <_c_.apr_hash_t **>(dirents_trans.ptr_ref()),
                         <_c_.apr_hash_t **>  (locks_trans.ptr_ref()),
-                        url, &(opt_peg_rev._c_opt_revision),
+                        _c_url, &(opt_peg_rev._c_opt_revision),
                         &(opt_rev._c_opt_revision), _c_recurse,
                         ctx._c_ctx, _c_tmp_pool)
         if serr is not NULL:
@@ -380,10 +424,11 @@ def list_directory(
 
 # compatibility wrapper of svn_client_cat*(), for minimum option
 def svn_client_cat(
-        _svn.svn_stream_t out, const char * url, _c_.svn_revnum_t peg_rev,
+        _svn.svn_stream_t out, object url, _c_.svn_revnum_t peg_rev,
         _c_.svn_revnum_t rev, object expand_keywords,
         object with_props, _svn.svn_client_ctx_t ctx,
         object scratch_pool):
+    cdef const char * _c_url
     cdef _svn.Apr_Pool tmp_pool
     cdef _svn.svn_opt_revision_t opt_peg_rev
     cdef _svn.svn_opt_revision_t opt_rev
@@ -394,6 +439,13 @@ def svn_client_cat(
         cdef _c_.apr_hash_t ** props_p
         cdef _c_.svn_boolean_t _c_expand
         cdef object props
+
+    # make sure url is a bytes object
+    if isinstance(url, PathLike):
+        url = url.__fspath__()
+    if not isinstance(url, bytes) and isinstance(url, str):
+        url = url.encode('utf-8')
+    _c_url = <const char *>url
 
     opt_peg_rev = _svn.svn_opt_revision_t(_c_.svn_opt_revision_number, peg_rev)
     opt_rev = _svn.svn_opt_revision_t(_c_.svn_opt_revision_number, rev)
@@ -414,7 +466,7 @@ def svn_client_cat(
         _c_expand = _c_.TRUE if expand_keywords else _c_.FALSE
         try:
             serr = _c_.svn_client_cat3(
-                       props_p, out._c_ptr, url,
+                       props_p, out._c_ptr, _c_url,
                        &(opt_peg_rev._c_opt_revision),
                        &(opt_rev._c_opt_revision),
                        _c_expand, ctx._c_ctx,
@@ -433,7 +485,7 @@ def svn_client_cat(
     ELSE:
         try:
             serr = _c_.svn_client_cat2(
-                       out._c_ptr, url, &(opt_peg_rev._c_opt_revision),
+                       out._c_ptr, _c_url, &(opt_peg_rev._c_opt_revision),
                        &(opt_rev._c_opt_revision),
                        ctx._c_ctx, tmp_pool._c_pool)
             if serr is not NULL:
@@ -446,6 +498,7 @@ def svn_client_cat(
 
 
 # helper function to convert Python list of bytes to apr_array of C string
+# caution: keep byteslist untill the apr_array is used.
 cdef _c_.apr_array_header_t * _bytes_list_to_apr_array(
             object byteslist, _c_.apr_pool_t *pool) except? NULL:
     cdef _c_.apr_array_header_t * _c_arrayptr
@@ -562,8 +615,9 @@ ELSE:
         return NULL
 
 def get_last_history_rev(
-        const char * url, _c_.svn_revnum_t rev, _svn.svn_client_ctx_t ctx,
+        object url, _c_.svn_revnum_t rev, _svn.svn_client_ctx_t ctx,
         object scratch_pool=None):
+    cdef const char * _c_url
     cdef _svn.Apr_Pool tmp_pool
     cdef _svn.svn_opt_revision_t opt_rev
     cdef _c_.svn_revnum_t lcrev
@@ -578,6 +632,13 @@ def get_last_history_rev(
     cdef _c_.apr_array_header_t * _c_revprops
     cdef _c_.svn_revnum_t lhrev
 
+    # make sure url is a bytes object
+    if isinstance(url, PathLike):
+        url = url.__fspath__()
+    if not isinstance(url, bytes) and isinstance(url, str):
+        url = url.encode('utf-8')
+    _c_url = <const char *>url
+
     opt_rev = _svn.svn_opt_revision_t(_c_.svn_opt_revision_number, rev)
     if scratch_pool is not None:
         assert (<_svn.Apr_Pool?>scratch_pool)._c_pool is not NULL
@@ -590,28 +651,28 @@ def get_last_history_rev(
     try:
         IF SVN_API_VER >= (1, 9):
             serr = _c_.svn_client_info4(
-                        url, &(opt_rev._c_opt_revision),
+                        _c_url, &(opt_rev._c_opt_revision),
                         &(opt_rev._c_opt_revision), _c_.svn_depth_empty,
                         _c_.FALSE, _c_.TRUE, _c_.FALSE, NULL,
                         _cb_get_last_change_rev, <void *>&lcrev,
                         ctx._c_ctx, tmp_pool._c_pool)
         ELIF SVN_API_VER >= (1, 7):
             serr = _c_.svn_client_info3(
-                        url, &(opt_rev._c_opt_revision),
+                        _c_url, &(opt_rev._c_opt_revision),
                         &(opt_rev._c_opt_revision), _c_.svn_depth_empty,
                         _c_.FALSE, _c_.TRUE, NULL,
                         _cb_get_last_change_rev, <void *>&lcrev,
                         ctx._c_ctx, tmp_pool._c_pool)
         ELIF SVN_API_VER >= (1, 5):
             serr = _c_.svn_client_info2(
-                        url, &(opt_rev._c_opt_revision),
+                        _c_url, &(opt_rev._c_opt_revision),
                         &(opt_rev._c_opt_revision),
                         _cb_get_last_change_rev, <void *>&lcrev,
                         _c_.svn_depth_empty, NULL,
                         ctx._c_ctx, tmp_pool._c_pool)
         ELSE:
             serr = _c_.svn_client_info(
-                        url, &(opt_rev._c_opt_revision),
+                        _c_url, &(opt_rev._c_opt_revision),
                         &(opt_rev._c_opt_revision),
                         _cb_get_last_change_rev, <void *>&lcrev,
                         _c_.FALSE, ctx._c_ctx, tmp_pool._c_pool)
@@ -710,6 +771,8 @@ IF SVN_API_VER >= (1, 6):
                 self.copyfrom_rev = None
             else:
                 self.copyfrom_path = <bytes>(ptr[0].copyfrom_path)
+                IF PY_VERSION >= (3, 0, 0):
+                    self.copyfrom_path = _svn._norm(self.copyfrom_path)
                 self.copyfrom_rev  = ptr[0].copyfrom_rev
             self.node_kind = ptr[0].node_kind
             IF SVN_API_VER >= (1, 7):
@@ -747,6 +810,8 @@ cdef class py_svn_log_changed_path_ref(object):
             self.copyfrom_rev = None
         else:
             self.copyfrom_path = <bytes>(ptr[0].copyfrom_path)
+            IF PY_VERSION >= (3, 0, 0):
+                self.copyfrom_path = _svn._norm(self.copyfrom_path)
             self.copyfrom_rev  = ptr[0].copyfrom_rev
         return self
 
@@ -793,7 +858,7 @@ cdef class py_svn_log_entry(object):
             if _c_ptr[0].changed_paths is NULL:
                 self.changed_paths = {}
             else:
-                cp_trans = _svn.HashTrans(_svn.CStringTransBytes(),
+                cp_trans = _svn.HashTrans(_svn.CStringTransStr(),
                                           SvnLogChangedPathTrans(),
                                           tmp_pool)
                 try:
@@ -822,7 +887,7 @@ cdef class py_svn_log_entry(object):
                     self.changed_paths2 = {}
                 else:
                     cp2_trans = _svn.HashTrans(
-                                            _svn.CStringTransBytes(),
+                                            _svn.CStringTransStr(),
                                             SvnLogChangedPath2Trans(),
                                             tmp_pool)
                     try:
@@ -855,7 +920,7 @@ cdef class py_svn_log_entry(object):
             if _c_ptr[0].changed_paths is NULL:
                 self.changed_paths = {}
             else:
-                cp_trans = _svn.HashTrans(_svn.CStringTransBytes(),
+                cp_trans = _svn.HashTrans(_svn.CStringTransStr(),
                                           _svn.SvnLogChangedPathTrans(),
                                           tmp_pool)
                 try:
@@ -982,7 +1047,7 @@ ELSE:
 
 # svn_client_log*() wrapper for vclib: disable some feature unused
 def client_log(
-        const char * url, object start_rev, object end_rev, int log_limit,
+        object url, object start_rev, object end_rev, int log_limit,
         object include_changes, object cross_copies, object cb_func,
         object baton, _svn.svn_client_ctx_t ctx, object scratch_pool=None):
     cdef _svn.Apr_Pool tmp_pool
@@ -995,10 +1060,15 @@ def client_log(
     cdef _svn.CbContainer btn
     cdef _c_.svn_error_t * serr
     cdef _svn.Svn_error pyerr
-
     IF SVN_API_VER >= (1, 6):
         cdef list rev_ranges
         cdef _c_.apr_array_header_t * _c_rev_ranges
+
+    # make sure url is a bytes object
+    if isinstance(url, PathLike):
+        url = url.__fspath__()
+    if not isinstance(url, bytes) and isinstance(url, str):
+        url = url.encode('utf-8')
 
     if isinstance(start_rev, _svn.svn_opt_revision_t):
         opt_start_rev = start_rev
@@ -1019,7 +1089,7 @@ def client_log(
         (<_svn.Apr_Pool>_svn._scratch_pool).clear()
         tmp_pool = _svn.Apr_Pool(_svn._scratch_pool)
     try:
-        targets = [<bytes>url]
+        targets = [url]
         _c_targets = _bytes_list_to_apr_array(targets, tmp_pool._c_pool)
         btn = _svn.CbContainer(cb_func, baton, tmp_pool)
         IF SVN_API_VER >= (1, 6):
@@ -1161,8 +1231,9 @@ IF SVN_API_VER >= (1, 5):
                             _c_baton, _c_prop_hash, _c_scratch_pool)
 
 def simple_proplist(
-        const char * url, object rev, _svn.svn_client_ctx_t ctx,
+        object url, object rev, _svn.svn_client_ctx_t ctx,
         object scratch_pool=None):
+    cdef const char * _c_url
     cdef _svn.Apr_Pool tmp_pool
     cdef _svn.svn_opt_revision_t opt_rev
     IF SVN_API_VER >= (1, 5):
@@ -1174,6 +1245,13 @@ def simple_proplist(
     cdef _c_.svn_error_t * serr
     cdef _svn.Svn_error pyerr
     cdef object propdic
+
+    # make sure url is a bytes object
+    if isinstance(url, PathLike):
+        url = url.__fspath__()
+    if not isinstance(url, bytes) and isinstance(url, str):
+        url = url.encode('utf-8')
+    _c_url = <const char *>url
 
     if isinstance(rev, _svn.svn_opt_revision_t):
         opt_rev = rev
@@ -1190,21 +1268,21 @@ def simple_proplist(
     try:
         IF SVN_API_VER >= (1, 8):
             serr = _c_.svn_client_proplist4(
-                        url, &(opt_rev._c_opt_revision),
+                        _c_url, &(opt_rev._c_opt_revision),
                         &(opt_rev._c_opt_revision), _c_.svn_depth_empty,
                         NULL, _c_.FALSE,
                         _cb_simple_proplist_receiver, <void *>propdic_list,
                         ctx._c_ctx, tmp_pool._c_pool)
         ELIF SVN_API_VER >= (1, 5):
             serr = _c_.svn_client_proplist3(
-                        url, &(opt_rev._c_opt_revision),
+                        _c_url, &(opt_rev._c_opt_revision),
                         &(opt_rev._c_opt_revision), _c_.svn_depth_empty, NULL,
                         _cb_simple_proplist_receiver, <void *>propdic_list,
                         ctx._c_ctx, tmp_pool._c_pool)
         ELSE:
             _c_props = NULL
             serr = _c_.svn_client_proplist2(
-                        &_c_props, url, &(opt_rev._c_opt_revision),
+                        &_c_props, _c_url, &(opt_rev._c_opt_revision),
                         &(opt_rev._c_opt_revision), _c_.FALSE,
                         ctx._c_ctx, tmp_pool._c_pool)
         if serr is not NULL:
