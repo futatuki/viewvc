@@ -407,10 +407,7 @@ class RemoteSubversionRepository(vclib.Repository):
     return dirent.size
 
   def _getpath(self, path_parts):
-    # this always returns path in bytes
-    return b'/'.join([pp if isinstance(pp, bytes)
-                         else pp.encode('utf-8', 'surrogateescape')
-                           for pp in path_parts])
+    return '/'.join(path_parts)
 
   def _getrev(self, rev):
     if PY3 and isinstance(rev, bytes):
@@ -431,7 +428,7 @@ class RemoteSubversionRepository(vclib.Repository):
   def _geturl(self, path=None):
     if not path:
       return self.rootpath
-    path = self.rootpath + b'/' + urllib.quote(path)
+    path = self.rootpath + '/' + urllib.quote(path)
     return _svn.canonicalize_path(path)
 
   def _get_dirents(self, path, rev):
@@ -442,7 +439,7 @@ class RemoteSubversionRepository(vclib.Repository):
     dir_url = self._geturl(path)
     path_parts = _path_parts(path)
     if path:
-      key = str(rev) + b'/' + path
+      key = str(rev) + '/' + path
     else:
       key = str(rev)
 

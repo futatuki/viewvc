@@ -31,9 +31,6 @@ def _allow_all(root, path, baton, pool):
   """Generic authz_read_func that permits access to all paths"""
   return 1
 
-def _fs_path_join(base, relative):
-  return _cleanup_path(base + b'/' + relative)
-
 
 def _get_last_history_rev(fsroot, path, scratch_pool=None):
   history = _svn_repos.svn_fs_node_history(
@@ -126,7 +123,7 @@ class FileContentsPipe:
 class LocalSubversionRepository(vclib.Repository):
   def __init__(self, name, rootpath, authorizer, utilities, config_dir):
     if not (os.path.isdir(rootpath) \
-            and os.path.isfile(os.path.join(rootpath, b'format'))):
+            and os.path.isfile(os.path.join(rootpath, 'format'))):
       raise vclib.ReposNotFound(name)
 
     # Initialize some stuff.
@@ -478,7 +475,7 @@ class LocalSubversionRepository(vclib.Repository):
             prev_rev = rev - 1
             parent_parts = parts[:-1]
             while parent_parts:
-              parent_path = b'/' + self._getpath(parent_parts)
+              parent_path = '/' + self._getpath(parent_parts)
               parent_change = changes.get(parent_path)
               if not (parent_change and \
                       (parent_change.change_kind in
@@ -611,10 +608,7 @@ class LocalSubversionRepository(vclib.Repository):
     return rev_paths
 
   def _getpath(self, path_parts):
-    # this always returns path in bytes
-    return b'/'.join([pp if isinstance(pp, bytes)
-                         else pp.encode('utf-8', 'surrogateescape')
-                           for pp in path_parts])
+    return '/'.join(path_parts)
 
   def _getrev(self, rev):
     if PY3 and isinstance(rev, bytes):
@@ -772,5 +766,5 @@ class LocalSubversionRepository(vclib.Repository):
       self.scratch_pool.clear()
     if pathspec[:5] != b'link ':
       return None
-    return pathspec[5:]
+    return _svn.norm(pathspec[5:])
 
