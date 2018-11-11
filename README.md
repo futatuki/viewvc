@@ -26,7 +26,7 @@ The only hard software requirement for running ViewVC is a suitable version of P
 
 *   [ViewVC 1.1.x](https://raw.githubusercontent.com/viewvc/viewvc/1.1.x/INSTALL)
 *   [Unreleased bleeding edge (1.2-dev)](https://raw.githubusercontent.com/viewvc/viewvc/master/INSTALL)
-*   [Unofficial, Experimental Python 3 support](https://github.com/futatuki/viewvc/blob/python3_support_with_altsvn/INSTALL), with [alternative Subversion access module](https://github.com/futatuki/viewvc/blob/python3_support_with_altsvn/src/lib/README-altsvn.txt)
+*   [Un-official, Experimental Python 3 support](https://github.com/futatuki/viewvc/blob/python3_support_with_altsvn/INSTALL), with [alternative Subversion access module](https://github.com/futatuki/viewvc/blob/python3_support_with_altsvn/src/lib/README-altsvn.txt)
 
 ## Getting ViewVC
 
@@ -47,6 +47,8 @@ Some notes for contributing to ViewVC's source code are include in our [HACKING.
 ## Questions or Concerns?
 
 Feel free to use our [Issue Tracker](https://github.com/viewvc/viewvc/issues) to ask questions, make feature requests, report bugs, etc.  In yesteryear, we had mailing lists for this kind of thing, but those have been discontinued.
+
+For this Un-official, experimental Python 3 support version, problem about Python 3 or altsvn module specific problem, as this is personal branch of @futatuki yet, please use [futatuki's Issue Tracker](https://github.com/futatuki/viewvc/issues) instead.
 
 ## License
 
