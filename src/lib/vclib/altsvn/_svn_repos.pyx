@@ -643,7 +643,10 @@ def svn_fs_copied_from(
         if serr is not NULL:
             pyerr = _svn.Svn_error().seterror(serr)
             raise _svn.SVNerr(pyerr)
-        from_path = _c_from_path if _c_from_path is not NULL else None
+        from_path = ((<bytes>_c_from_path) if _c_from_path is not NULL
+                                           else None)
+        IF PY_VERSION >= (3, 0, 0):
+            from_path = _svn._norm(from_path)
     finally:
         _c_.apr_pool_destroy(_c_tmp_pool)
     return _c_rev, from_path
@@ -917,13 +920,21 @@ cdef class svn_repos_t(object):
 
 # this is only for svn_repos.py{x}, does not provide full function
 # but try to newer API.
-def svn_repos_open(const char * path, result_pool=None, scratch_pool=None):
+def svn_repos_open(object path, result_pool=None, scratch_pool=None):
+    cdef const char * _c_path
     cdef _c_.svn_repos_t * _c_repos
     cdef _c_.apr_status_t ast
     cdef _c_.apr_pool_t * _c_tmp_pool
     cdef _svn.Apr_Pool r_pool
     cdef _c_.svn_error_t * serr
     cdef _svn.Svn_error pyerr
+
+    # make sure path is a bytes object
+    if isinstance(path, PathLike):
+        path = path.__fspath__()
+    if not isinstance(path, bytes) and isinstance(path, str):
+        path = path.encode('utf-8')
+    _c_path = <const char *>path
 
     if result_pool is not None:
         assert (<_svn.Apr_Pool?>result_pool)._c_pool is not NULL
@@ -945,13 +956,13 @@ def svn_repos_open(const char * path, result_pool=None, scratch_pool=None):
     try:
         IF SVN_API_VER >= (1, 9):
             serr = _c_.svn_repos_open3(
-                        &_c_repos, path, NULL, r_pool._c_pool, _c_tmp_pool)
+                        &_c_repos, _c_path, NULL, r_pool._c_pool, _c_tmp_pool)
         ELIF SVN_API_VER >= (1, 7):
             serr = _c_.svn_repos_open2(
-                        &_c_repos, path, NULL, r_pool._c_pool)
+                        &_c_repos, _c_path, NULL, r_pool._c_pool)
         ELSE:
             serr = _c_.svn_repos_open(
-                        &_c_repos, path, r_pool._c_pool)
+                        &_c_repos, _c_path, r_pool._c_pool)
         if serr is not NULL:
             pyerr = _svn.Svn_error().seterror(serr)
             raise _svn.SVNerr(pyerr)
@@ -1039,7 +1050,7 @@ def svn_repos_trace_node_locations(
                                                        tmp_pool._c_pool)
         btn = _svn.CbContainer(authz_read_func, authz_read_baton, tmp_pool)
         loctrans = _svn.HashTrans(_svn.SvnRevnumPtrTrans(),
-                                  _svn.CStringTransBytes(),
+                                  _svn.CStringTransStr(),
                                   tmp_pool)
         serr = _c_.svn_repos_trace_node_locations(
                     fs._c_ptr, <_c_.apr_hash_t **>(loctrans.ptr_ref()),
