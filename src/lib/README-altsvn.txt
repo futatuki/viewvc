@@ -7,7 +7,7 @@ Python 3.x yet, but uses bridge module to access C API, written in Cython.
 
 
 [Build Requirement]
-* Python 2.6/2.7 or 3.x (for 3.x, tested with 3.6 and 3.7 only)
+* Python 2.6/2.7 or 3.x (for 3.x, only tested on 3.6 and 3.7)
 * Cython 0.28 or above (not tested in 0.27 and below, and it is obviously
   needed 0.24 or above for @property syntax)
 * C compiler
@@ -82,6 +82,11 @@ from cython/capi/subversion_1/_svn_api_ver.pxi.
 
 [To do]
 * more testing.
-  - especially test for remote repos on Python 3
 * improve build and install process
   - platforms other than Unix like environment
+
+
+[Notice]
+   Since this is un-official, personal work of @futatuki on GitHub yet,
+please do not ask for this module to ViewVC Group, please use
+<https://github.com/futatuki/viewvc/issues> instead.
