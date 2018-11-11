@@ -766,5 +766,5 @@ class LocalSubversionRepository(vclib.Repository):
       self.scratch_pool.clear()
     if pathspec[:5] != b'link ':
       return None
-    return _svn.norm(pathspec[5:])
+    return _svn._norm(pathspec[5:])
 

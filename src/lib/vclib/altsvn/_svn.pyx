@@ -418,7 +418,7 @@ cdef class svn_opt_revision_range_t(object):
                <void *>&((<svn_opt_revision_t?>end)._c_opt_revision),
                sizeof(self._c_range.end))
 
-def canonicalize_path(path, scratch_pool=None):
+def canonicalize_path(path, scratch_pool=None, as_bytes=False):
     cdef _c_.apr_status_t ast
     cdef _c_.apr_pool_t * _c_tmp_pool
     cdef const char * _c_rpath
@@ -457,9 +457,12 @@ def canonicalize_path(path, scratch_pool=None):
             rpath = _c_rpath
     finally:
         _c_.apr_pool_destroy(_c_tmp_pool)
+    IF PY_VERSION >= (3, 0, 0):
+        if not as_bytes:
+            return rpath.encode('utf-8', 'surrogateescape')
     return rpath
 
-def canonicalize_rootpath(path, scratch_pool=None):
+def canonicalize_rootpath(path, scratch_pool=None, as_bytes=False):
     cdef _c_.apr_status_t ast
     cdef _c_.apr_pool_t * _c_tmp_pool
     cdef const char * _c_rootpath
@@ -527,7 +530,11 @@ def canonicalize_rootpath(path, scratch_pool=None):
             assert os.path.isabs(rootpath)
     finally:
         _c_.apr_pool_destroy(_c_tmp_pool)
-    return rootpath
+    IF PY_VERSION >= (3, 0, 0):
+        if not as_bytes:
+            return rootpath.decode('utf-8', 'surrogateescape')
+    ELSE:
+        return rootpath
 
 # called from svn_repos module
 def rootpath2url(rootpath, path, scratch_pool=None):
@@ -544,13 +551,13 @@ def rootpath2url(rootpath, path, scratch_pool=None):
     rootpath = os.path.abspath(rootpath)
     if scratch_pool is not None:
         fullpath = canonicalize_path(os.path.join(rootpath, path),
-                                     scratch_pool)
+                                     scratch_pool, as_bytes=True)
         ast = _c_.apr_pool_create(&_c_tmp_pool,
                                   (<Apr_Pool>scratch_pool)._c_pool)
     else:
         _scratch_pool.clear()
         fullpath = canonicalize_path(os.path.join(rootpath, path),
-                                     _scratch_pool)
+                                     _scratch_pool, as_bytes=True)
         _scratch_pool.clear()
         ast = _c_.apr_pool_create(&_c_tmp_pool, _scratch_pool._c_pool)
     if ast:
@@ -675,7 +682,7 @@ def svn_stream_read_full(svn_stream_t stream, len):
         pyerr = Svn_error().seterror(serr)
         raise SVNerr(pyerr)
     if _c_len > 0:
-        buf = (<bytes>_c_buf)[0:_c_len]
+        buf = _c_buf[0:_c_len]
     else:
         buf = b''
     if _c_buf != _streambuf:
@@ -707,7 +714,7 @@ IF SVN_API_VER >= (1, 9):
             pyerr = Svn_error().seterror(serr)
             raise SVNerr(pyerr)
         if _c_len > 0:
-            buf = (<bytes>_c_buf)[0:_c_len]
+            buf = _c_buf[0:_c_len]
         else:
             buf = b''
         if _c_buf != _streambuf:
