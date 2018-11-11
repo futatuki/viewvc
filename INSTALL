@@ -19,8 +19,9 @@ Congratulations on getting this far. :-)
 
     In General:
 
-      * Python 2, version 2.6 or later (sorry, no 3.x support yet, and
-        dropping support 2.5 and earlier to prepare support 3.x)
+      * Python 2, version 2.6 or later (sorry, current Python 3.x
+        support is only for Subversion repositories with unofficial
+        module, and tested on standalone server only)
           (http://www.python.org/)
 
     For CVS Support:
@@ -38,8 +39,8 @@ Congratulations on getting this far. :-)
           (binary installation and Python bindings)
           (http://subversion.apache.org/)
 
-    For Python 3.x Support(Subversion only):
-      -> please see src/lib/README-altsvn
+      * For Python 3.x Support(Subversion only),
+         -> please see ./src/lib/README-altsvn
 
     Optional:
 
@@ -121,7 +122,12 @@ installation instructions.
    And you need to have the RCS utilities installed, specifically "rlog",
    "rcsdiff", and "co".
 
-2) Installation is handled by the ./viewvc-install script.  Run this
+2) (Optional) If you need alternative Subversion access modules,
+   you must build them before run ./viewvc-install script.
+   please see ./src/lib/README-altsvn for building instruction
+   for them.
+
+3) Installation is handled by the ./viewvc-install script.  Run this
    script and you will be prompted for a installation root path.
    The default is /usr/local/viewvc-VERSION, where VERSION is
    the version of this ViewVC release.  The installer sets the install
@@ -144,7 +150,7 @@ installation instructions.
    a previous installation. It will always overwrite program files,
    however.
 
-3) Edit <VIEWVC_INSTALLATION_DIRECTORY>/viewvc.conf for your specific
+4) Edit <VIEWVC_INSTALLATION_DIRECTORY>/viewvc.conf for your specific
    configuration.  In particular, examine the following configuration options:
 
       cvs_roots (for CVS)
@@ -161,7 +167,7 @@ installation instructions.
    then edit the files in <VIEWVC_INSTALLATION_DIRECTORY>/templates.
    You need knowledge about HTML to edit the templates.
 
-4) The CGI programs are in <VIEWVC_INSTALLATION_DIRECTORY>/bin/cgi/.  You can
+5) The CGI programs are in <VIEWVC_INSTALLATION_DIRECTORY>/bin/cgi/.  You can
    symlink to this directory from somewhere in your published HTTP server
    path if your webserver is configured to follow symbolic links.  You can
    also copy the installed <VIEWVC_INSTALLATION_DIRECTORY>/bin/cgi/*.cgi
