@@ -20,11 +20,11 @@ from ._svn import canonicalize_rootpath as canonicalize_rootpath
 from ._svn import _norm
 
 def _path_parts(path):
-    return [_norm(pp) for pp in path.split(b'/') if pp]
+    return [_norm(pp) for pp in path.split('/') if pp]
 
 def _cleanup_path(path):
   """Return a cleaned-up Subversion filesystem path"""
-  return b'/'.join([pp for pp in path.split(b'/') if pp])
+  return '/'.join([pp for pp in path.split('/') if pp])
 
 
 def _compare_paths(path1, path2):
@@ -43,20 +43,20 @@ def _compare_paths(path1, path2):
 
   # Children of paths are greater than their parents, but less than
   # greater siblings of their parents
-  char1 = b'\0'
-  char2 = b'\0'
+  char1 = '\0'
+  char2 = '\0'
   if (i < path1_len):
     char1 = path1[i:i+1]
   if (i < path2_len):
     char2 = path2[i:i+1]
 
-  if (char1 == b'/') and (i == path2_len):
+  if (char1 == '/') and (i == path2_len):
     return 1
-  if (char2 == b'/') and (i == path1_len):
+  if (char2 == '/') and (i == path1_len):
     return -1
-  if (i < path1_len) and (char1 == b'/'):
+  if (i < path1_len) and (char1 == '/'):
     return -1
-  if (i < path2_len) and (char2 == b'/'):
+  if (i < path2_len) and (char2 == '/'):
     return 1
 
   # Common prefix was skipped above, next character is compared to
@@ -85,7 +85,7 @@ def _split_revprops(revprops, scratch_pool=None):
   return msg, author, date, revprops
 
 
-_re_url = re.compile(b'^(http|https|file|svn|svn\+[^:]+)://')
+_re_url = re.compile('^(http|https|file|svn|svn\+[^:]+)://')
 
 def expand_root_parent(parent_path):
   roots = {}
@@ -133,8 +133,8 @@ class SVNChangedPath(vclib.ChangedPath):
 
   def __init__(self, path, rev, pathtype, base_path, base_rev,
                action, copied, text_changed, props_changed):
-    path_parts = _path_parts(path or b'')
-    base_path_parts = _path_parts(base_path or b'')
+    path_parts = _path_parts(path or '')
+    base_path_parts = _path_parts(base_path or '')
     vclib.ChangedPath.__init__(self, path_parts, rev, pathtype,
                                base_path_parts, base_rev, action,
                                copied, text_changed, props_changed)
