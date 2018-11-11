@@ -459,7 +459,7 @@ def canonicalize_path(path, scratch_pool=None, as_bytes=False):
         _c_.apr_pool_destroy(_c_tmp_pool)
     IF PY_VERSION >= (3, 0, 0):
         if not as_bytes:
-            return rpath.encode('utf-8', 'surrogateescape')
+            return rpath.decode('utf-8', 'surrogateescape')
     return rpath
 
 def canonicalize_rootpath(path, scratch_pool=None, as_bytes=False):
