@@ -20,8 +20,9 @@ Congratulations on getting this far. :-)
     In General:
 
       * Python 2, version 2.6 or later (sorry, current Python 3.x
-        support is only for Subversion repositories with unofficial
-        module, and tested on standalone server only)
+        support is experimental, tested on standalone server only.
+        in addition, un-official extra module is needed for
+        Subversion repositories access)
           (http://www.python.org/)
 
     For CVS Support:
@@ -32,6 +33,9 @@ Congratulations on getting this far. :-)
           (http://www.gnu.org/software/diffutils/diffutils.html)
       * read-only, physical access to a CVS repository
           (See http://www.cvshome.org/ for more information)
+      * currently, CVS access via rcsparse is not supported
+        on Python 3 yet.  please keep use_rcsparse = 0 on Python 3,
+        except if you are developer.
 
     For Subversion Support:
 
@@ -39,7 +43,8 @@ Congratulations on getting this far. :-)
           (binary installation and Python bindings)
           (http://subversion.apache.org/)
 
-      * For Python 3.x Support(Subversion only),
+      *  On Python 3, you need extra un-official Subversion repository
+        access module. (need to build by using Cython and C compiler)
          -> please see ./src/lib/README-altsvn
 
     Optional:
