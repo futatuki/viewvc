@@ -33,9 +33,6 @@ Congratulations on getting this far. :-)
           (http://www.gnu.org/software/diffutils/diffutils.html)
       * read-only, physical access to a CVS repository
           (See http://www.cvshome.org/ for more information)
-      * currently, CVS access via rcsparse is not supported
-        on Python 3 yet.  please keep use_rcsparse = 0 on Python 3,
-        except if you are developer.
 
     For Subversion Support:
 
