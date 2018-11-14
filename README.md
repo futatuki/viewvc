@@ -50,6 +50,10 @@ Feel free to use our [Issue Tracker](https://github.com/viewvc/viewvc/issues) to
 
 For this Un-official, experimental Python 3 support version, problem about Python 3 or altsvn module specific problem, as this is personal branch of @futatuki yet, please use [futatuki's Issue Tracker](https://github.com/futatuki/viewvc/issues) instead.
 
+## ViewVC Docker Images
+
+GitHub user @cmanley has graciously assembled Docker images for running ViewVC.  See his work at https://github.com/cmanley/viewvc-docker.
+
 ## License
 
 **Copyright © 1999-2018 The ViewCVS Group. All rights reserved.**
