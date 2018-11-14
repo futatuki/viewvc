@@ -66,6 +66,11 @@ except (SyntaxError, ImportError):
 
 debug.t_end('imports')
 
+# Initialize the system tracebacklimit value to 0, meaning stack
+# traces will carry only the top-level exception string.  This can be
+# overridden via configuration.
+sys.tracebacklimit = 0
+
 #########################################################################
 
 checkout_magic_path = '*checkout*'
@@ -1120,6 +1125,8 @@ def get_file_view_info(request, where, rev=None, mime_type=None, pathrev=-1):
      annotate_href
      revision_href
      prefer_markup
+     is_viewable_image
+     is_binary
 
   """
 
@@ -1180,7 +1187,9 @@ def get_file_view_info(request, where, rev=None, mime_type=None, pathrev=-1):
                download_text_href=download_text_href,
                annotate_href=annotate_href,
                revision_href=revision_href,
-               prefer_markup=ezt.boolean(prefer_markup))
+               prefer_markup=ezt.boolean(prefer_markup),
+               is_viewable_image=ezt.boolean(is_viewable_image(mime_type)),
+               is_binary=ezt.boolean(is_binary_file))
 
 
 # Matches URLs
@@ -2396,7 +2405,8 @@ def view_directory(request):
                 log_file=None, log_rev=None, graph_href=None, mime_type=None,
                 date=None, ago=None, view_href=None, log_href=None,
                 revision_href=None, annotate_href=None, download_href=None,
-                download_text_href=None, prefer_markup=ezt.boolean(0))
+                download_text_href=None, prefer_markup=ezt.boolean(0),
+                is_viewable_image=ezt.boolean(0), is_binary=ezt.boolean(0))
     if request.roottype == 'cvs' and file.absent:
       continue
     if cfg.options.hide_errorful_entries and file.errors:
@@ -2480,6 +2490,8 @@ def view_directory(request):
       row.annotate_href = fvi.annotate_href
       row.revision_href = fvi.revision_href
       row.prefer_markup = fvi.prefer_markup
+      row.is_viewable_image = fvi.is_viewable_image
+      row.is_binary = fvi.is_binary
       row.log_href = request.get_url(view_func=view_log,
                                      where=file_where,
                                      pathtype=vclib.FILE,
@@ -5238,6 +5250,9 @@ def load_config(pathname=None, server=None):
   cfg.set_defaults()
   cfg.load_config(pathname, env_get("HTTP_HOST"))
 
+  # Apply the stacktrace configuration immediately.
+  sys.tracebacklimit = cfg.options.stacktraces and 1000 or 0
+
   # Load mime types file(s), but reverse the order -- our
   # configuration uses a most-to-least preferred approach, but the
   # 'mimetypes' package wants things the other way around.
@@ -5258,22 +5273,20 @@ def view_error(server, cfg):
     exc_dict['msg'] = server.escape(exc_dict['msg'])
   if exc_dict['stacktrace']:
     exc_dict['stacktrace'] = server.escape(exc_dict['stacktrace'])
-  handled = 0
 
-  # use the configured error template if possible
+  # Use the configured error template if possible.
   try:
     if cfg and not server.headerSent:
       server.header(status=status)
       template = get_view_template(cfg, "error")
       template.generate(server.file(), exc_dict)
-      handled = 1
+      return
   except:
     pass
 
-  # but fallback to the old exception printer if no configuration is
-  # available, or if something went wrong
-  if not handled:
-    debug.PrintException(server, exc_dict)
+  # Fallback to the old exception printer if no configuration is
+  # available, or if something went wrong.
+  debug.PrintException(server, exc_dict)
 
 def main(server, cfg):
   try:
