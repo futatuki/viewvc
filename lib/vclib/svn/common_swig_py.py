@@ -30,7 +30,7 @@ def _fix_subversion_exception(e):
 
 
 def _rev2optrev(rev):
-  assert type(rev) in (int, long)
+  assert isinstance(rev, (int, long))
   rt = core.svn_opt_revision_t()
   rt.kind = core.svn_opt_revision_number
   rt.value.number = rev

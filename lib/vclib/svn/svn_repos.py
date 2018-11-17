@@ -24,8 +24,8 @@ import urllib
 from svn import fs, repos, core, client, delta
 
 from . import _canonicalize_path
-from .common import SubversionRepository, Revision, SVNChangedPath, \
-                    _compare_paths, _path_parts, _getpath, _cleanup_path
+from .svn_common import SubversionRepository, Revision, SVNChangedPath, \
+                        _compare_paths, _path_parts, _getpath, _cleanup_path
 from .common_swig_py import _datestr_to_date, _rev2optrev, \
                             _fix_subversion_exception, _split_revprops
 
