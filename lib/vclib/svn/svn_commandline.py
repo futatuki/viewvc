@@ -18,6 +18,7 @@ import sys
 import os
 import os.path
 import re
+import io
 import tempfile
 import time
 import calendar
@@ -91,6 +92,8 @@ _re_svnerr = re.compile(r'svn: E(?P<errno>[0-9]+): (?P<msg>.*)$')
 
 class SvnCommandError(vclib.Error):
   def __init__(self, errout, cmd, retcode):
+    if PY3 and isinstance(errout, bytes):
+      errout = errout.decode('utf-8', 'surrogateescape')
     if errout[-1:] == '\n':
       errout = errout[:-1]
     self.cmd = cmd
@@ -651,10 +654,10 @@ class CmdLineSubversionRepository(SubversionRepository):
     revopt = "-r%s:%s" % (rev, last_changed_rev)
     et = self.svn_cmd_xml('log', [revopt, '-l', '1', '-v', '--stop-on-copy',
                                   url])
-    assert len(et._root._children) == 1
+    assert len(et.findall('./logentry')) == 1
     # et._root is element <log>, and its only child is element <logentry>
     # with 'revision attribute'
-    return (long(et._root._children[0].attrib['revision']),
+    return (long(et.find('./logentry').attrib['revision']),
             long(last_changed_rev))
 
   def _revinfo_fetch(self, rev, include_changed_paths=0):
@@ -805,7 +808,12 @@ class CmdLineSubversionRepository(SubversionRepository):
 
   def svn_cmd(self, cmd, args, cfg=None):
     proc = self._do_svn_cmd(cmd, args, cfg)
-    text = proc.stdout.read()
+    if PY3:
+      fp = io.TextIOWrapper(proc.stdout, encoding='utf-8',
+                            errors='surrogateescape')
+      text = fp.read()
+    else:
+      text = proc.stdout.read()
     proc.stdout.close()
     try:
       errout = proc.stderr.read()
@@ -824,7 +832,12 @@ class CmdLineSubversionRepository(SubversionRepository):
   def svn_cmd_xml(self, cmd, args, cfg=None):
     proc = self._do_svn_cmd(cmd, ['--xml'] + list(args), cfg)
     try:
-      et = xml.etree.ElementTree.parse(proc.stdout)
+      if PY3:
+        fp = io.TextIOWrapper(proc.stdout, encoding='utf-8',
+                              errors='surrogateescape')
+        et = xml.etree.ElementTree.parse(fp)
+      else:
+        et = xml.etree.ElementTree.parse(proc.stdout)
     except:
       try:
         errout = proc.stderr.read()
@@ -853,9 +866,9 @@ class CmdLineSubversionRepository(SubversionRepository):
 
   def get_svn_version(self):
     version = self.svn_cmd('--version', ['--quiet'])
-    if version and version[-1:] == b'\n':
+    if version and version[-1:] == '\n':
       version = version[:-1]
-    version = tuple([int(x) for x in version.split(b'.')])
+    version = tuple([int(x) for x in version.split('.')])
     return version
 
   def list_directory(self, url, peg_rev, rev):

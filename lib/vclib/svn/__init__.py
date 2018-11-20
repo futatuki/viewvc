@@ -118,15 +118,15 @@ def SubversionRepository(name, rootpath, authorizer, utilities, config_dir):
   rootpath = canonicalize_rootpath(rootpath)
   if access_module == MODULE_SWIG_BINDINGS:
     if re.search(_re_url, rootpath):
-      import svn_ra
+      from . import svn_ra
       return svn_ra.RemoteSubversionRepository(name, rootpath, authorizer,
                                                utilities, config_dir)
     else:
-      import svn_repos
+      from . import svn_repos
       return svn_repos.LocalSubversionRepository(name, rootpath, authorizer,
                                                  utilities, config_dir)
   elif access_module == MODULE_COMMAND_LINE:
-    import svn_commandline
+    from . import svn_commandline
     return svn_commandline.CmdLineSubversionRepository(name, rootpath,
                                                        authorizer,
                                                        utilities, config_dir)
