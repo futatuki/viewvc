@@ -40,9 +40,17 @@ Congratulations on getting this far. :-)
           (binary installation and Python bindings)
           (http://subversion.apache.org/)
 
-      *  On Python 3, you need extra un-official Subversion repository
-        access module. (need to build by using Cython and C compiler)
-         -> please see ./src/lib/README-altsvn
+      *  On Python 3
+        - you need extra un-official Subversion repository
+          access module. (need to build by using Cython and C compiler)
+          -> please see ./src/lib/README-altsvn
+
+        - Alternatively, you can try un-released, un-official Subversion
+          swig Python binding for Python 3 (swig-py3).
+          for Subversion 1.11.0: (futatuki's personal branch)
+          https://github.com/futatuki/subversion/tree/1.11.0-swig-py3
+          (Caution: currently, Python binding for Python 2 and Python3
+          cannot install simulataneously)
 
     Optional:
 
