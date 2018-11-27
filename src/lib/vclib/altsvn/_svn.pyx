@@ -969,7 +969,7 @@ IF PY_VERSION >= (3, 0, 0):
         cdef object to_object(self):
             cdef object pybytes
             pybytes = self._c_str
-            return pybytes.decode('utf-8')
+            return pybytes.decode('utf-8', 'surrogateescape')
         cdef void set_ptr(self, void *_c_ptr):
             self._c_str = <char *>_c_ptr
         cdef void ** ptr_ref(self):
@@ -998,7 +998,7 @@ IF PY_VERSION >= (3, 0, 0):
         cdef object to_object(self):
             cdef object pybytes
             pybytes = self._c_svn_str[0].data[:self._c_svn_str[0].len]
-            return pybytes.decode('utf-8')
+            return pybytes.decode('utf-8', 'surrogateescape')
         cdef void set_ptr(self, void *_c_ptr):
             self._c_svn_str = <_c_.svn_string_t *>_c_ptr
         cdef void ** ptr_ref(self):
