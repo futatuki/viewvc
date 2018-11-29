@@ -1,5 +1,5 @@
 include "_svn_api_ver.pxi"
-from apr_1.apr cimport apr_size_t, apr_int32_t 
+from apr_1.apr cimport apr_size_t, apr_int32_t
 from apr_1.apr_file_io cimport apr_file_t
 from apr_1.apr_file_info cimport apr_fileperms_t
 from apr_1.apr_pools cimport apr_pool_t
