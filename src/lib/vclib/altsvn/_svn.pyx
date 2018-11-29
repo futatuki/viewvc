@@ -115,8 +115,8 @@ def _initialize():
         PyMem_Free(errstrbuf)
         raise InitError(estr)
     else:
-        if 0 != atexit(_c_.apr_terminate2):
-            _c_.apr_terminate2()
+        if 0 != atexit(_c_.apr_terminate):
+            _c_.apr_terminate()
             raise MemoryError()
     # setup _root_pool and _scratch_pool
     _root_pool = Apr_Pool.__new__(Apr_Pool, None)
@@ -2207,7 +2207,7 @@ IF SVN_API_VER >= (1, 7):
                 _c_err = _c_.svn_time_from_cstring(
                                     &_c_date, date_string, _c_pool)
                 if _c_err is NULL:
-                    date = <int64_t>(_c_date / 1000000)
+                    date = <int64_t>(_c_date // 1000000)
         _c_err = NULL
         try:
             btn.fnobj(btn, _c_line_no, _c_revision, author, date,
@@ -2255,7 +2255,7 @@ ELIF SVN_API_VER >= (1, 5):
             _c_err = _c_.svn_time_from_cstring(
                                 &_c_date, _c_date_string, _c_pool)
             if _c_err is NULL:
-                date = <int64_t>(_c_date / 1000000)
+                date = <int64_t>(_c_date // 1000000)
         else:
             date = None
         _c_err = NULL
@@ -2304,7 +2304,7 @@ ELSE:
             _c_err = _c_.svn_time_from_cstring(
                                 &_c_date, _c_date_string, _c_pool)
             if _c_err is NULL:
-                date = <int64_t>(_c_date / 1000000)
+                date = <int64_t>(_c_date // 1000000)
         else:
             date = None
         _c_err = NULL
