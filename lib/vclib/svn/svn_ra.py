@@ -26,16 +26,13 @@ else:
   PY3 = False
   from urllib import quote as _quote
 
-from .svn_repos import Revision, SVNChangedPath, _datestr_to_date, \
-                      _compare_paths, _path_parts, _cleanup_path, \
-                      _rev2optrev, _fix_subversion_exception, \
-                      _split_revprops, _canonicalize_path
 from svn import core, delta, client, wc, ra
 
-
-### Require Subversion 1.3.1 or better. (for svn_ra_get_locations support)
-if (core.SVN_VER_MAJOR, core.SVN_VER_MINOR, core.SVN_VER_PATCH) < (1, 3, 1):
-  raise Exception("Version requirement not met (needs 1.3.1 or better)")
+from . import _canonicalize_path
+from .svn_common import SubversionRepository, Revision, SVNChangedPath, \
+                        _compare_paths, _path_parts, _getpath, _cleanup_path
+from .common_swig_py import _datestr_to_date, _rev2optrev, \
+                            _fix_subversion_exception, _split_revprops
 
 
 ### BEGIN COMPATABILITY CODE ###
@@ -229,17 +226,7 @@ class SelfCleanFP:
     return self._eof
 
 
-class RemoteSubversionRepository(vclib.Repository):
-  def __init__(self, name, rootpath, authorizer, utilities, config_dir):
-    self.name = name
-    self.rootpath = rootpath
-    self.auth = authorizer
-    self.diff_cmd = utilities.diff or 'diff'
-    self.config_dir = config_dir or None
-
-    # See if this repository is even viewable, authz-wise.
-    if not vclib.check_root_access(self):
-      raise vclib.ReposNotFound(name)
+class RemoteSubversionRepository(SubversionRepository):
 
   def open(self):
     # Setup the client context baton, complete with non-prompting authstuffs.
@@ -257,24 +244,12 @@ class RemoteSubversionRepository(vclib.Repository):
     if self.auth and self.auth.check_universal_access(self.name) == 1:
       self.auth = None
     
-  def rootname(self):
-    return self.name
-
-  def rootpath(self):
-    return self.rootpath
-
-  def roottype(self):
-    return vclib.SVN
-
-  def authorizer(self):
-    return self.auth
-  
   def itemtype(self, path_parts, rev):
     pathtype = None
     if not len(path_parts):
       pathtype = vclib.DIR
     else:
-      path = self._getpath(path_parts)
+      path = _getpath(path_parts)
       rev = self._getrev(rev)
       try:
         kind = ra.svn_ra_check_path(self.ra_session, path, rev)
@@ -291,7 +266,7 @@ class RemoteSubversionRepository(vclib.Repository):
     return pathtype
 
   def openfile(self, path_parts, rev, options):
-    path = self._getpath(path_parts)
+    path = _getpath(path_parts)
     if self.itemtype(path_parts, rev) != vclib.FILE:  # does auth-check
       raise vclib.Error("Path '%s' is not a file." % path)
     rev = self._getrev(rev)
@@ -302,7 +277,7 @@ class RemoteSubversionRepository(vclib.Repository):
     return fp, lh_rev
 
   def listdir(self, path_parts, rev, options):
-    path = self._getpath(path_parts)
+    path = _getpath(path_parts)
     if self.itemtype(path_parts, rev) != vclib.DIR:  # does auth-check
       raise vclib.Error("Path '%s' is not a directory." % path)
     rev = self._getrev(rev)
@@ -320,7 +295,7 @@ class RemoteSubversionRepository(vclib.Repository):
     return entries
 
   def dirlogs(self, path_parts, rev, entries, options):
-    path = self._getpath(path_parts)
+    path = _getpath(path_parts)
     if self.itemtype(path_parts, rev) != vclib.DIR:  # does auth-check
       raise vclib.Error("Path '%s' is not a directory." % path)
     rev = self._getrev(rev)
@@ -343,7 +318,7 @@ class RemoteSubversionRepository(vclib.Repository):
   def itemlog(self, path_parts, rev, sortby, first, limit, options):
     assert sortby == vclib.SORTBY_DEFAULT or sortby == vclib.SORTBY_REV   
     path_type = self.itemtype(path_parts, rev) # does auth-check
-    path = self._getpath(path_parts)
+    path = _getpath(path_parts)
     rev = self._getrev(rev)
     url = self._geturl(path)
 
@@ -352,7 +327,7 @@ class RemoteSubversionRepository(vclib.Repository):
     lockinfo = size_in_rev = None
     if path_type == vclib.FILE:
       basename = path_parts[-1]
-      list_url = self._geturl(self._getpath(path_parts[:-1]))
+      list_url = self._geturl(_getpath(path_parts[:-1]))
       dirents, locks = list_directory(list_url, _rev2optrev(rev),
                                       _rev2optrev(rev), 0, self.ctx)
       if basename in locks:
@@ -403,7 +378,7 @@ class RemoteSubversionRepository(vclib.Repository):
     return revs
 
   def itemprops(self, path_parts, rev):
-    path = self._getpath(path_parts)
+    path = _getpath(path_parts)
     path_type = self.itemtype(path_parts, rev) # does auth-check
     rev = self._getrev(rev)
     url = self._geturl(path)
@@ -412,7 +387,7 @@ class RemoteSubversionRepository(vclib.Repository):
     return pairs and pairs[0][1] or {}
   
   def annotate(self, path_parts, rev, include_text=False):
-    path = self._getpath(path_parts)
+    path = _getpath(path_parts)
     if self.itemtype(path_parts, rev) != vclib.FILE:  # does auth-check
       raise vclib.Error("Path '%s' is not a file." % path)
     rev = self._getrev(rev)
@@ -460,8 +435,8 @@ class RemoteSubversionRepository(vclib.Repository):
     return self._revinfo(rev, 1)
     
   def rawdiff(self, path_parts1, rev1, path_parts2, rev2, type, options={}):
-    p1 = self._getpath(path_parts1)
-    p2 = self._getpath(path_parts2)
+    p1 = _getpath(path_parts1)
+    p2 = _getpath(path_parts2)
     r1 = self._getrev(rev1)
     r2 = self._getrev(rev2)
     if not vclib.check_path_access(self, path_parts1, vclib.FILE, rev1):
@@ -492,31 +467,14 @@ class RemoteSubversionRepository(vclib.Repository):
     return core.SVN_PROP_EXECUTABLE in props
   
   def filesize(self, path_parts, rev):
-    path = self._getpath(path_parts)
+    path = _getpath(path_parts)
     if self.itemtype(path_parts, rev) != vclib.FILE:  # does auth-check
       raise vclib.Error("Path '%s' is not a file." % path)
     rev = self._getrev(rev)
-    dirents, locks = self._get_dirents(self._getpath(path_parts[:-1]), rev)
+    dirents, locks = self._get_dirents(_getpath(path_parts[:-1]), rev)
     dirent = dirents.get(path_parts[-1], None)
     return dirent.size
     
-  def _getpath(self, path_parts):
-    return '/'.join(path_parts)
-
-  def _getrev(self, rev):
-    if rev is None or rev == 'HEAD':
-      return self.youngest
-    try:
-      if type(rev) == type(''):
-        while rev[0] == 'r':
-          rev = rev[1:]
-      rev = int(rev)
-    except:
-      raise vclib.InvalidRevision(rev)
-    if (rev < 0) or (rev > self.youngest):
-      raise vclib.InvalidRevision(rev)
-    return rev
-
   def _geturl(self, path=None):
     if not path:
       return self.rootpath
@@ -563,8 +521,8 @@ class RemoteSubversionRepository(vclib.Repository):
            the history of PATH_PARTS.
          - the created_rev of of PATH_PARTS as of REV."""
     
-    path = self._getpath(path_parts)
-    url = self._geturl(self._getpath(path_parts))
+    path = _getpath(path_parts)
+    url = self._geturl(_getpath(path_parts))
     optrev = _rev2optrev(rev)
 
     # Get the last-changed-rev.
@@ -752,45 +710,14 @@ class RemoteSubversionRepository(vclib.Repository):
     lh_rev, c_rev = self._get_last_history_rev(_path_parts(path), rev)
     return lh_rev
 
-  def last_rev(self, path, peg_revision, limit_revision=None):
-    """Given PATH, known to exist in PEG_REVISION, find the youngest
-    revision older than, or equal to, LIMIT_REVISION in which path
-    exists.  Return that revision, and the path at which PATH exists in
-    that revision."""
-    
-    # Here's the plan, man.  In the trivial case (where PEG_REVISION is
-    # the same as LIMIT_REVISION), this is a no-brainer.  If
-    # LIMIT_REVISION is older than PEG_REVISION, we can use Subversion's
-    # history tracing code to find the right location.  If, however,
-    # LIMIT_REVISION is younger than PEG_REVISION, we suffer from
-    # Subversion's lack of forward history searching.  Our workaround,
-    # ugly as it may be, involves a binary search through the revisions
-    # between PEG_REVISION and LIMIT_REVISION to find our last live
-    # revision.
-    peg_revision = self._getrev(peg_revision)
-    limit_revision = self._getrev(limit_revision)
-    if peg_revision == limit_revision:
-      return peg_revision, path
-    elif peg_revision > limit_revision:
-      path = self.get_location(path, peg_revision, limit_revision)
-      return limit_revision, path
-    else:
-      direction = 1
-      while peg_revision != limit_revision:
-        mid = (peg_revision + 1 + limit_revision) // 2
-        try:
-          path = self.get_location(path, peg_revision, mid)
-        except vclib.ItemNotFound:
-          limit_revision = mid - 1
-        else:
-          peg_revision = mid
-      return peg_revision, path
+  # we use default (fallback) last_rev() methods, so not override here.
+  # def last_rev(self, path, peg_revision, limit_revision=None): ...
 
   def get_symlink_target(self, path_parts, rev):
     """Return the target of the symbolic link versioned at PATH_PARTS
     in REV, or None if that object is not a symlink."""
 
-    path = self._getpath(path_parts)
+    path = _getpath(path_parts)
     path_type = self.itemtype(path_parts, rev) # does auth-check
     rev = self._getrev(rev)
     url = self._geturl(path)
