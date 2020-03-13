@@ -24,8 +24,8 @@ ViewVC is a browser interface for CVS and Subversion version control repositorie
 
 The only hard software requirement for running ViewVC is a suitable version of Python. The specifics of that, as well as all other requirements, depend on what you want to do with the tool. As those have changed somewhat over the years, it's best to consult the INSTALL file of the specific ViewVC release you wish to evaluate for its exact requirements. Here are pointers to the INSTALL files for the current major release lines:
 
-*   [ViewVC 1.1.x](https://raw.githubusercontent.com/viewvc/viewvc/1.1.x/INSTALL)
-*   [Unreleased bleeding edge (1.2-dev)](https://raw.githubusercontent.com/viewvc/viewvc/master/INSTALL)
+*   [ViewVC 1.2.x](https://raw.githubusercontent.com/viewvc/viewvc/1.2.x/INSTALL)
+*   [ViewVC 1.1.x (security fixes only)](https://raw.githubusercontent.com/viewvc/viewvc/1.1.x/INSTALL)
 *   [Un-official, Experimental Python 3 support](https://github.com/futatuki/viewvc/blob/python3_support_with_altsvn/INSTALL), with [alternative Subversion access module](https://github.com/futatuki/viewvc/blob/python3_support_with_altsvn/src/lib/README-altsvn.txt)
 
 ## Getting ViewVC
@@ -56,7 +56,7 @@ GitHub user @cmanley has graciously assembled Docker images for running ViewVC. 
 
 ## License
 
-**Copyright © 1999-2018 The ViewCVS Group. All rights reserved.**
+**Copyright © 1999-2019 The ViewCVS Group. All rights reserved.**
 
 By using ViewVC, you agree to the terms and conditions set forth below:
 
