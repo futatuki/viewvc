@@ -41,6 +41,7 @@ td {
 
 <h1>Upgrading ViewVC</h1>
 
+<!-- ************************************************************************ -->
 <div class="h2">
 <h2 id="introduction">Introduction</h2>
 
@@ -61,8 +62,19 @@ td {
    version.  This way you can easily test several versions and switch
    back if your users start to complain.</p>
 
+<p>Please note that <em>every</em> ViewVC release&mdash;even patch
+   releases&mdash;may deliver a new feature, a new configuration
+   option, a new template data dictionary item.  But we try to avoid
+   introducing changes that would cause an existing ViewVC
+   installation to stop functioning, or to function wildly different,
+   in mere patch releases.  That's why this document offers guidance
+   for upgrades only across major and minor release lines of ViewVC.
+   For patch release upgrades, your best bet is to carefully examine
+   the distributed configuration file templates
+   (<code>viewvc.conf.dist</code>, etc.).
 </div>
 
+<!-- ************************************************************************ -->
 <div class="h2">
 <h2 id="toc">Table of Contents</h2>
 <ul class="toc-list">
@@ -74,19 +86,499 @@ td {
 </ul>
 </div>
 
+<!-- ************************************************************************ -->
 <div class="h2">
-<h2 id="sec-from-1-0">Upgrading From ViewVC 1.1</h2>
+<h2 id="sec-from-1-1">Upgrading From ViewVC 1.1</h2>
 
 <p>This section discusses how to upgrade ViewVC 1.1.x to ViewVC 1.2.x.</p>
 
+<!-- ------------------------------------------------------------------------ -->
+<div class="h3">
+<h3>Minimum Python Version Changed</h3>
+
+<p>ViewVC 1.2 requires Python 2, with a minimum version of Python
+   2.4.  Sorry, there's no Python 3 support yet.</p>
+
+<p>As of January 1, 2020, Python 2 is essentially unsupported (and
+   Python 1 support has long, long since disappeared), but moving
+   forward with Python 3 has proven to be a significant challenge for
+   ViewVC.  A key dependency of ViewVC's support for Subversion
+   repositories &mdash; Subversion's own Python language API bindings
+   &mdash; have not at the time of this release yet achieved Python 3
+   support.  So ViewVC 1.2 is a (hopefully short-lived) release line
+   aimed at getting into users' hands previously unreleased features
+   and improvements that have been collecting over the past decade
+   before the project takes up Python 3 as a requirement.</p>
+
 </div>
 
+<!-- ------------------------------------------------------------------------ -->
+<div class="h3" id="12_config_section_syntax_change">
+<h3>Configuration Override Section Syntax Change</h3>
 
+<p>ViewVC 1.2 changes the syntax of so-called configuration override
+   sections from using a slash character (<tt>/</tt>) as the
+   hierarchical separator to a pipe character (<tt>|</tt>).  This
+   allows references to root names that carry context in a more
+   obvious way.  Administrators should replace the slash characters in
+   any viewvc.conf section names with pipe characters.  For example:</p>
+
+<blockquote><pre>[root-project1/options]
+authorizer = forbidden
+
+[root-project1/authz-forbidden]
+forbidden = private    
+</pre></blockquote>
+
+<p>&hellip;should now be changed to:</p>
+
+<blockquote><pre>[root-project1|options]
+authorizer = forbidden
+
+[root-project1|authz-forbidden]
+forbidden = private    
+</pre></blockquote> 
+
+</div>
+
+<!-- ------------------------------------------------------------------------ -->
+<div class="h3">
+<h3>Templates</h3>
+    
+<p>This section describes template variable changes introduced in this
+   release.  See the <a href="./template-authoring-guide.html">Template
+   Authoring Guide</a> for the current set of variables available to
+   each templates.</p>
+
+<p>ViewVC 1.2 ships with two supported template sets now, "default"
+   (which is based on the ViewVC 1.1 "viewsvn" contributed template)
+   and "classic" (which derives from the ViewVC 1.1 default template).
+   As such, the default value of the <tt>template_dir</tt>
+   configuration option is now "templates/default" rather than merely
+   "templates".</p>
+
+<table>
+<thead>
+<tr>
+  <th>Variable</th>
+  <th>Location</th>
+  <th>Changes</th>
+</tr>
+</thead>
+<tbody>
+<tr class="added">
+  <td class="varname">home_href</td>
+  <td><em>all templates</em></td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">gbbox</td>
+  <td>graph.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">gflip</td>
+  <td>graph.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">gleft</td>
+  <td>graph.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">gmaxtag</td>
+  <td>graph.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">graph_action</td>
+  <td>graph.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">graph_hidden_values</td>
+  <td>graph.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">gshow</td>
+  <td>graph.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">opt_gbbox</td>
+  <td>graph.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">opt_gflip</td>
+  <td>graph.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">opt_gleft</td>
+  <td>graph.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">opt_gmaxtag</td>
+  <td>graph.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">opt_gshow</td>
+  <td>graph.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">dirs_shown</td>
+  <td>directory.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">entries.is_binary</td>
+  <td>directory.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">entries.is_viewable_image</td>
+  <td>directory.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">row_limit_reached</td>
+  <td>directory.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">roots.ago</td>
+  <td>roots.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">roots.author</td>
+  <td>roots.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">roots.date</td>
+  <td>roots.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">roots.log</td>
+  <td>roots.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">roots.log_href</td>
+  <td>roots.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">roots.rev</td>
+  <td>roots.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">roots.short_log</td>
+  <td>roots.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">roots_shown</td>
+  <td>roots.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">changes</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.changes</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">changes.have_left</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.changes.have_left</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">changes.have_right</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.changes.have_right</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">changes.left</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.changes.left</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">changes.line_info_extra</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.changes.line_info_extra</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">changes.line_info_left</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.changes.line_info_left</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">changes.line_info_right</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.changes.line_info_right</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">changes.line_number</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.changes.line_number</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">changes.right</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.changes.right</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">changes.type</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.changes.type</td>
+</tr>
+<tr class="added">
+  <td class="varname">diffs</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">diffs.anchor</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">diffs.changes.columns.line_number</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">diffs.changes.columns.segments.text</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">diffs.changes.columns.segments.type</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">diffs.changes.columns.segments</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">diffs.changes.columns</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">diffs.changes.gap</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">diffs.changes.segments.text</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">diffs.changes.segments.type</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">diffs.changes.segments</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">diffs.diff_block_format</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">diffs.left.ago</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">diffs.left.author</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">diffs.left.log</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">diffs.left.size</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">diffs.right.ago</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">diffs.right.author</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">diffs.right.log</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">diffs.right.size</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="added">
+  <td class="varname">hide_legend</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">left</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.left</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">left.annotate_href</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.left.annotate_href</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">left.date</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.left.date</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">left.download_href</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.left.download_href</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">left.download_text_href</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.left.download_text_href</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">left.path</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.left.path</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">left.prefer_markup</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.left.prefer_markup</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">left.rev</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.left.rev</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">left.revision_href</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.left.revision_href</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">left.tag</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.left.tag</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">left.view_href</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.left.view_href</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">right</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.right</td>
+</tr>
+<tr class="added">
+  <td class="varname">patch_href</td>
+  <td>diff.ezt</td>
+  <td>added</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">raw_diff</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.changes.raw</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">right.annotate_href</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.right.annotate_href</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">right.date</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.right.date</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">right.download_href</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.right.download_href</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">right.download_text_href</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.right.download_text_href</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">right.path</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.right.path</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">right.prefer_markup</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.right.prefer_markup</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">right.rev</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.right.rev</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">right.revision_href</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.right.revision_href</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">right.tag</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.right.tag</td>
+</tr>
+<tr class="renamed">
+  <td class="varname">right.view_href</td>
+  <td>diff.ezt</td>
+  <td>renamed to diffs.right.view_href</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+
+<!-- ************************************************************************ -->
 <div class="h2">
 <h2 id="sec-from-1-0">Upgrading From ViewVC 1.0</h2>
 
 <p>This section discusses how to upgrade ViewVC 1.0.x to ViewVC 1.1.x.</p>
 
+<!-- ------------------------------------------------------------------------ -->
 <div class="h3">
 <h3>root_as_url_component Now Enabled by Default</h3>
     
@@ -117,6 +609,7 @@ td {
 
 </div>
 
+<!-- ------------------------------------------------------------------------ -->
 <div class="h3">
 <h3>Path-Based Authorization / Forbidden Modules</h3>
     
@@ -190,6 +683,7 @@ td {
 
 </div>
 
+<!-- ------------------------------------------------------------------------ -->
 <div class="h3">
 <h3>Syntax Highlighting</h3>
 
@@ -230,6 +724,7 @@ td {
 
 </div>
 
+<!-- ------------------------------------------------------------------------ -->
 <div class="h3">
 <h3>Checkin Database</h3>
 
@@ -254,14 +749,12 @@ td {
 <p>In other words, where you once did this:</p>
 
 <blockquote><pre>$ svndbadmin rebuild /path/to/repository 1234
-</pre>
-</blockquote>
+</pre></blockquote>
 
 <p>you now need to do this:</p>
 
 <blockquote><pre>$ svndbadmin update /path/to/repository 1234 --force
-</pre>
-</blockquote>
+</pre></blockquote>
 
 <p>To enhance the performance of the new "purge" operation, ViewVC 1.1
    introduces some slight changes to the checkin database schema.  If
@@ -278,6 +771,7 @@ td {
 
 </div>
 
+<!-- ------------------------------------------------------------------------ -->
 <div class="h3">
 <h3>Configuration Options</h3>
 
@@ -358,8 +852,7 @@ all = viewvc.*
 
 [all-options]
 allowed_views = annotate, diff, markup, tar
-</pre>
-</blockquote>
+</pre></blockquote>
 
 <p>This now needs to be written like so:</p>
 
@@ -368,8 +861,7 @@ all = viewvc.*
 
 [vhost-all/options]
 allowed_views = annotate, diff, markup, tar
-</pre>
-</blockquote>
+</pre></blockquote>
 
 <p>The following is a grab-bag of additional new options:</p>
 
@@ -380,6 +872,7 @@ allowed_views = annotate, diff, markup, tar
 
 </div>
 
+<!-- ------------------------------------------------------------------------ -->
 <div class="h3">
 <h3>Templates</h3>
     
@@ -685,11 +1178,13 @@ allowed_views = annotate, diff, markup, tar
 </div>
 </div>
 
+<!-- ************************************************************************ -->
 <div class="h2">
 <h2 id="sec-from-0-9">Upgrading From ViewCVS 0.9</h2>
 
 <p>This section discusses how to upgrade ViewCVS 0.9 to ViewVC 1.0.</p>
 
+<!-- ------------------------------------------------------------------------ -->
 <div class="h3">
 <h3>CGI Stubs</h3>
     
@@ -703,6 +1198,7 @@ allowed_views = annotate, diff, markup, tar
 
 </div>
 
+<!-- ------------------------------------------------------------------------ -->
 <div class="h3">
 <h3>Checkin Database</h3>
     
@@ -716,6 +1212,7 @@ allowed_views = annotate, diff, markup, tar
 
 </div>
 
+<!-- ------------------------------------------------------------------------ -->
 <div class="h3">
 <h3>"checkout_magic" Option</h3>
 
@@ -733,6 +1230,7 @@ allowed_views = annotate, diff, markup, tar
 
 </div>
 
+<!-- ------------------------------------------------------------------------ -->
 <div class="h3">
 <h3>Configuration Options</h3>
 
@@ -781,6 +1279,7 @@ allowed_views = annotate, diff, markup, tar
 
 </div>
 
+<!-- ------------------------------------------------------------------------ -->
 <div class="h3">
 <h3>Templates</h3>
     
@@ -1588,6 +2087,7 @@ allowed_views = annotate, diff, markup, tar
 
 </div>
 
+<!-- ------------------------------------------------------------------------ -->
 <div class="h3">
 <h3>Template Arrangement</h3>
     
@@ -1609,11 +2109,13 @@ allowed_views = annotate, diff, markup, tar
 </div>
 </div>
 
+<!-- ************************************************************************ -->
 <div class="h2">
 <h2 id="sec-from-0-8">Upgrading From ViewCVS 0.8</h2>
 
 <p>This section discusses how to upgrade ViewCVS 0.8 to ViewCVS 0.9.x.</p>
     
+<!-- ------------------------------------------------------------------------ -->
 <div class="h3">
 <h3>Configuration Options</h3>
 
@@ -1670,6 +2172,7 @@ allowed_views = annotate, diff, markup, tar
 
 </div>
 
+<!-- ------------------------------------------------------------------------ -->
 <div class="h3">
 <h3>Template Variables</h3>
 

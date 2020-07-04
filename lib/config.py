@@ -1,6 +1,6 @@
 # -*-python-*-
 #
-# Copyright (C) 1999-2018 The ViewCVS Group. All Rights Reserved.
+# Copyright (C) 1999-2020 The ViewCVS Group. All Rights Reserved.
 #
 # By using this file, you agree to the terms and conditions set forth in
 # the LICENSE.html file which can be found at the top level of the ViewVC
@@ -53,32 +53,32 @@ import fnmatch
 #         PER-ROOT          PER-VHOST            BASE
 #       
 #                         ,-----------.     ,-----------.
-#                         | vhost-*/  |     |           |
+#                         | vhost-*|  |     |           |
 #                         |  general  | --> |  general  |
 #                         |           |     |           |
 #                         `-----------'     `-----------'
 #       ,-----------.     ,-----------.     ,-----------.
-#       |  root-*/  |     | vhost-*/  |     |           |
+#       |  root-*|  |     | vhost-*|  |     |           |
 #       |  options  | --> |  options  | --> |  options  |
 #       |           |     |           |     |           |
 #       `-----------'     `-----------'     `-----------'
 #       ,-----------.     ,-----------.     ,-----------.
-#       |  root-*/  |     | vhost-*/  |     |           |
+#       |  root-*|  |     | vhost-*|  |     |           |
 #       | templates | --> | templates | --> | templates |
 #       |           |     |           |     |           |
 #       `-----------'     `-----------'     `-----------'
 #       ,-----------.     ,-----------.     ,-----------.
-#       |  root-*/  |     | vhost-*/  |     |           |
+#       |  root-*|  |     | vhost-*|  |     |           |
 #       | utilities | --> | utilities | --> | utilities |
 #       |           |     |           |     |           |
 #       `-----------'     `-----------'     `-----------'
 #                         ,-----------.     ,-----------.
-#                         | vhost-*/  |     |           |
+#                         | vhost-*|  |     |           |
 #                         |   cvsdb   | --> |   cvsdb   |
 #                         |           |     |           |
 #                         `-----------'     `-----------'
 #       ,-----------.     ,-----------.     ,-----------.
-#       |  root-*/  |     | vhost-*/  |     |           |
+#       |  root-*|  |     | vhost-*|  |     |           |
 #       |  authz-*  | --> |  authz-*  | --> |  authz-*  |
 #       |           |     |           |     |           |
 #       `-----------'     `-----------'     `-----------'
@@ -118,6 +118,7 @@ class Config:
     # Configuration values with multiple, comma-separated values.
     'allowed_views',
     'binary_mime_types',
+    'dir_ignored_files',
     'custom_log_formatting',
     'cvs_roots',
     'kv_files',
@@ -250,7 +251,7 @@ class Config:
     at all, return None.  And if it's an override section but not an
     allowed one, raise IllegalOverrideSection."""
 
-    cv = '%s-%s/' % (sectype, secspec)
+    cv = '%s-%s|' % (sectype, secspec)
     lcv = len(cv)
     if section[:lcv] != cv:
       return None
@@ -340,7 +341,7 @@ class Config:
     # Figure out the authorizer by searching first for a per-root
     # override, then falling back to the base/vhost configuration.
     authorizer = None
-    root_options_section = 'root-%s/options' % (rootname)
+    root_options_section = 'root-%s|options' % (rootname)
     if self.parser.has_section(root_options_section) \
        and self.parser.has_option(root_options_section, 'authorizer'):
       authorizer = self.parser.get(root_options_section, 'authorizer')
@@ -359,7 +360,7 @@ class Config:
       sub_config = getattr(self, authz_section)
       for attr in dir(sub_config):
         params[attr] = getattr(sub_config, attr)
-    root_authz_section = 'root-%s/authz-%s' % (rootname, authorizer)
+    root_authz_section = 'root-%s|authz-%s' % (rootname, authorizer)
     for section in self.parser.sections():
       if section == root_authz_section:
         for key, value in self._get_parser_items(self.parser, section):
@@ -409,6 +410,7 @@ class Config:
     self.options.custom_log_formatting = []
     self.options.default_file_view = "log"
     self.options.binary_mime_types = []
+    self.options.dir_ignored_files = []
     self.options.http_expiration_time = 600
     self.options.generate_etags = 1
     self.options.svn_ignore_mimetype = 0
@@ -457,7 +459,6 @@ class Config:
     self.templates.file = None
     self.templates.graph = None
     self.templates.log = None
-    self.templates.query = None
     self.templates.query_form = None
     self.templates.query_results = None
     self.templates.roots = None
@@ -473,8 +474,6 @@ class Config:
     self.cvsdb.row_limit = 1000
     self.cvsdb.rss_row_limit = 100
     self.cvsdb.check_database_for_root = 0
-
-    self.query.viewvc_base_url = None
     
     self.vclib.use_altsvn = 0
 

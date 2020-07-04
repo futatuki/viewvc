@@ -1,6 +1,6 @@
 # -*-python-*-
 #
-# Copyright (C) 1999-2018 The ViewCVS Group. All Rights Reserved.
+# Copyright (C) 1999-2020 The ViewCVS Group. All Rights Reserved.
 #
 # By using this file, you agree to the terms and conditions set forth in
 # the LICENSE.html file which can be found at the top level of the ViewVC
@@ -223,8 +223,8 @@ def _get_last_history_rev(fsroot, path):
   
 def temp_checkout(svnrepos, path, rev):
   """Check out file revision to temporary file"""
-  temp = tempfile.mktemp()
-  fp = open(temp, 'wb')
+  fd, temp = tempfile.mkstemp()
+  fp = os.fdopen(fd, 'wb')
   try:
     root = svnrepos._getroot(rev)
     stream = fs.file_contents(root, path)

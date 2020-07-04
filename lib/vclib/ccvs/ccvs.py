@@ -1,6 +1,6 @@
 # -*-python-*-
 #
-# Copyright (C) 1999-2018 The ViewCVS Group. All Rights Reserved.
+# Copyright (C) 1999-2020 The ViewCVS Group. All Rights Reserved.
 #
 # By using this file, you agree to the terms and conditions set forth in
 # the LICENSE.html file which can be found at the top level of the ViewVC
@@ -123,10 +123,10 @@ class CCVSRepository(BaseCVSRepository):
     if self.itemtype(path_parts2, rev2) != vclib.FILE:  # does auth-check
       raise vclib.Error("Path '%s' is not a file." % (_path_join(path_parts2)))
 
-    temp1 = tempfile.mktemp()
-    open(temp1, 'wb').write(self.openfile(path_parts1, rev1, {})[0].getvalue())
-    temp2 = tempfile.mktemp()
-    open(temp2, 'wb').write(self.openfile(path_parts2, rev2, {})[0].getvalue())
+    fd1, temp1 = tempfile.mkstemp()
+    os.fdopen(fd1, 'wb').write(self.openfile(path_parts1, rev1, {})[0].getvalue())
+    fd2, temp2 = tempfile.mkstemp()
+    os.fdopen(fd2, 'wb').write(self.openfile(path_parts2, rev2, {})[0].getvalue())
 
     r1 = self.itemlog(path_parts1, rev1, vclib.SORTBY_DEFAULT, 0, 0, {})[-1]
     r2 = self.itemlog(path_parts2, rev2, vclib.SORTBY_DEFAULT, 0, 0, {})[-1]

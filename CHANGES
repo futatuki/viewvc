@@ -1,11 +1,30 @@
-Version 1.2.0 (released ??-???-????)
+Version 1.2.1 (released 26-Mar-2020)
 
-  * bumped minimum support Python version to 2.4
+  * security fix: escape subdir lastmod file name (#211) [CVE-????-????]
+
+Version 1.2.0 (released 17-Mar-2020)
+
+  * bumped minimum supported Python version to 2.4
   * implemented support for property diffs (Tigris #383)
   * allow user-configurable cvsgraph display (Tigris #336)
   * allow rNNNN syntax for Subversion revision numbers (Tigris #441)
   * display revision numbers in CVS tag/branch selector (Tigris #546)
   * allow roots to have optional context (#58)
+  * use a more secure temporary file generator (#159)
+  * fix problems with make-database and special characters (#141, #182)
+  * fix bogus default ci_when value in cvsdb (#200)
+  * standalone query interface removed (#206)
+  * GUI support (--gui) removed from standalone.py
+
+Version 1.1.27 (released 06-Jun-2019)
+
+  * suppress stack traces (with option to show) (#140)
+  * distinguish text/binary/image files by icons (#166, #175)
+  * colorize alternating file content lines (#167)
+  * link to the instance root from the ViewVC logo (#168)
+  * display directory and root counts, too (#169)
+  * fix double fault error in standalone.py (#157)
+  * support timezone offsets with minutes piece (#176)
 
 --- NOTE: Issue references below this point are from Tigris.org ---
 
