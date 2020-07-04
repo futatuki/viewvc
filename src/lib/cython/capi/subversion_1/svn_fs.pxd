@@ -1,7 +1,7 @@
 include "_svn_api_ver.pxi"
 from apr_1.apr_pools cimport apr_pool_t
 from apr_1.apr_hash cimport apr_hash_t
-from subversion_1.svn_types cimport * 
+from subversion_1.svn_types cimport *
 from subversion_1.svn_string cimport svn_string_t
 from subversion_1.svn_io cimport svn_stream_t
 

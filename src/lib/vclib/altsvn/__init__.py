@@ -12,15 +12,20 @@
 
 "Version Control lib driver for Subversion repositories"
 
+import sys
 import os.path
 import re
 import vclib
 from ._svn import canonicalize_path as _canonicalize_path
 from ._svn import canonicalize_rootpath as canonicalize_rootpath
-from ._svn import _norm
+
+# Python 3: workaround for cmp()
+if sys.version_info[0] >= 3:
+  def cmp(a, b):
+    return (a > b) - (a < b)
 
 def _path_parts(path):
-    return [_norm(pp) for pp in path.split('/') if pp]
+    return [pp for pp in path.split('/') if pp]
 
 def _cleanup_path(path):
   """Return a cleaned-up Subversion filesystem path"""

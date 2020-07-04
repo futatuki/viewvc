@@ -18,7 +18,15 @@ import os
 import io
 import re
 import tempfile
-import urllib
+
+if sys.version_info[0] >= 3:
+  PY3 = True
+  import functools
+  from urllib.parse import quote as _quote
+else:
+  PY3 = False
+  from urllib import quote as _quote
+
 from . import _svn, _svn_ra, _path_parts, _cleanup_path,\
               _compare_paths, _split_revprops, Revision, SVNChangedPath
 #from svn import client
@@ -53,8 +61,13 @@ class LogCollector:
     msg, author, date, revprops = _split_revprops(log_entry.revprops)
 
     # Changed paths have leading slashes
-    changed_paths = paths.keys()
-    changed_paths.sort(lambda a, b: _compare_paths(a, b))
+    if PY3:
+      changed_paths = list(paths.keys())
+      changed_paths.sort(key=functools.cmp_to_key(
+                                           lambda a, b: _compare_paths(a, b)))
+    else:
+      changed_paths = paths.keys()
+      changed_paths.sort(lambda a, b: _compare_paths(a, b))
     this_path = None
     if self.path in changed_paths:
       this_path = self.path
@@ -428,7 +441,7 @@ class RemoteSubversionRepository(vclib.Repository):
   def _geturl(self, path=None):
     if not path:
       return self.rootpath
-    path = self.rootpath + '/' + urllib.quote(path)
+    path = self.rootpath + '/' + _quote(path)
     return _svn.canonicalize_path(path)
 
   def _get_dirents(self, path, rev):
@@ -505,11 +518,14 @@ class RemoteSubversionRepository(vclib.Repository):
       # hash, and in Subversion 1.6, it's offered but broken.
       try:
         changed_paths = log_entry.changed_paths2
-        paths = (changed_paths or {}).keys()
+        paths = list((changed_paths or {}).keys())
       except:
         changed_paths = log_entry.changed_paths
-        paths = (changed_paths or {}).keys()
-      paths.sort(lambda a, b: _compare_paths(a, b))
+        paths = list((changed_paths or {}).keys())
+      if PY3:
+        paths.sort(key=functools.cmp_to_key(lambda a, b: _compare_paths(a, b)))
+      else:
+        paths.sort(lambda a, b: _compare_paths(a, b))
 
       # If we get this far, our caller needs changed-paths, or we need
       # them for authz-related sanitization.
@@ -637,8 +653,8 @@ class RemoteSubversionRepository(vclib.Repository):
     return old_path
 
   def created_rev(self, path, rev):
-    if not isinstance(path, bytes):
-      path = path.encode('utf-8', 'surrogateescape')
+    if PY3 and isinstance(path, bytes):
+      path = _svn._norm(path)
     lh_rev, c_rev = self._get_last_history_rev(_path_parts(path), rev)
     return lh_rev
 

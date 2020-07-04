@@ -4,7 +4,7 @@ from apr_1.apr_hash cimport apr_hash_t
 from apr_1.apr_tables cimport apr_array_header_t
 from subversion_1.svn_types cimport svn_error_t, svn_boolean_t, svn_revnum_t
 from subversion_1.svn_fs cimport svn_fs_t, svn_fs_root_t
-from subversion_1.svn_delta cimport svn_delta_editor_t 
+from subversion_1.svn_delta cimport svn_delta_editor_t
 
 cdef extern from "svn_repos.h" nogil:
     ctypedef svn_error_t * (* svn_repos_authz_func_t)(
@@ -38,7 +38,7 @@ cdef extern from "svn_repos.h" nogil:
     ctypedef svn_error_t * (* svn_repos_history_func_t)(
             void *baton, const char *path, svn_revnum_t revision,
             apr_pool_t *pool)
-    svn_error_t * svn_repos_history2( 
+    svn_error_t * svn_repos_history2(
             svn_fs_t * fs, const char * path,
             svn_repos_history_func_t history_func, void * history_baton,
             svn_repos_authz_func_t authz_read_func, void * authz_read_baton,

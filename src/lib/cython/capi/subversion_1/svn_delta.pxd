@@ -12,7 +12,7 @@ cdef extern from "svn_delta.h" nogil:
     ctypedef struct svn_txdelta_op_t:
         svn_delta_action action_code
         apr_size_t offset
-        apr_size_t length 
+        apr_size_t length
     ctypedef struct svn_txdelta_window_t:
         svn_filesize_t sview_offset
         apr_size_t sview_len
@@ -26,7 +26,7 @@ cdef extern from "svn_delta.h" nogil:
     ctypedef struct svn_txdelta_stream_t:
         pass
     IF SVN_API_VER >= (1, 10):
-        ctypedef svn_error_t * (* svn_txdelta_stream_open_func_t)( 
+        ctypedef svn_error_t * (* svn_txdelta_stream_open_func_t)(
                     svn_txdelta_stream_t ** txdelta_stream, void * baton,
                     apr_pool_t * result_pool, apr_pool_t * scratch_pool)
 

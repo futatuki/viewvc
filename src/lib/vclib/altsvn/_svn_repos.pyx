@@ -1186,8 +1186,8 @@ cdef _c_.svn_error_t * _cb_changed_paths_delete_entry(
         void * parent_baton, _c_.apr_pool_t * scratch_pool) with gil:
     cdef _get_changed_paths_DirBaton * pb
     cdef _get_changed_paths_EditBaton eb
-    cdef bytes path
-    cdef bytes base_path
+    cdef object path
+    cdef object base_path
     cdef const char * _c_base_path
     cdef _c_.svn_error_t * _c_err
     cdef _c_.svn_node_kind_t item_type
@@ -1224,7 +1224,7 @@ cdef _c_.svn_error_t * _cb_changed_paths_add_directory(
         _c_.apr_pool_t * result_pool, void ** child_baton) with gil:
     cdef _get_changed_paths_DirBaton * pb
     cdef _get_changed_paths_EditBaton eb
-    cdef bytes path
+    cdef object path
     cdef object copyfrom_path
     cdef _get_changed_paths_DirBaton * cb
     cdef _c_.svn_error_t * _c_err
@@ -1318,7 +1318,7 @@ cdef _c_.svn_error_t * _cb_changed_paths_change_dir_prop(
     eb = <_get_changed_paths_EditBaton>(db[0].edit_baton)
     db_path = <bytes>(db[0].path)
     IF PY_VERSION >= (3, 0, 0):
-        db_path = _svn.norm(db_path)
+        db_path = _svn._norm(db_path)
     if db_path in eb.changes:
         (<_ChangedPath>(eb.changes[db_path])).prop_changes = _c_.TRUE
     else:
@@ -1347,7 +1347,7 @@ cdef _c_.svn_error_t * _cb_changed_paths_add_file(
             _c_.apr_pool_t * result_pool, void ** file_baton) with gil:
     cdef _get_changed_paths_DirBaton * pb
     cdef _get_changed_paths_EditBaton eb
-    cdef bytes path
+    cdef object path
     cdef object copyfrom_path
     cdef _get_changed_paths_DirBaton * fb
     cdef _c_.svn_fs_path_change_kind_t action
