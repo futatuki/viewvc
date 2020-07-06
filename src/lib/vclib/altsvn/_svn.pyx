@@ -7,8 +7,6 @@ from libc.string cimport memcpy
 from cpython cimport Py_buffer
 from cpython.mem cimport PyMem_Malloc, PyMem_Realloc, PyMem_Free
 cimport _svn_capi as _c_
-IF SVN_API_VER >= (1, 6):
-    from subversion_1 cimport svn_dirent_uri
 
 import os
 import os.path
